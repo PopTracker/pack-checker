@@ -26,7 +26,7 @@ comment_regex = jsonc_parser.parser.JsoncParser.regex
 
 
 def fetch_json(uri: str):
-    if not hasattr(fetch_json, "_cache"):
+    if not hasattr(fetch_json, "cache"):
         fetch_json.cache = {}
     if uri not in fetch_json.cache:
         if uri.startswith("file://"):
