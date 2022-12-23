@@ -5,11 +5,13 @@ import json
 import os.path
 import re
 import requests
+import threading
 from collections import namedtuple
+from functools import wraps
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TextIO, Tuple
+from typing import Any, Callable, Dict, List, Optional, ParamSpec, TextIO, Tuple, TypeVar
 from urllib.parse import urlparse
 
 
@@ -23,21 +25,56 @@ trailing_regex = re.compile(r"(\".*?\"|\'.*?\')|,(\s*[\]\}])", re.MULTILINE | re
 comment_regex = re.compile(r"(\".*?\"|\'.*?\')|(/\*.*?\*/|//[^\r\n]*$)", re.MULTILINE | re.DOTALL)
 # comment_regex from jsonc-parser: https://github.com/NickolaiBeloguzov/jsonc-parser
 
+P = ParamSpec("P")
+R = TypeVar("R")
+
 
 class ParserError(Exception):
     pass
 
 
+def cache_threaded(func: Callable[P, R]) -> Callable[P, R]:
+    lock = threading.Lock()
+    cache: Dict[P.args, R] = {}
+    busy: Dict[P.args, threading.Event] = {}
+
+    @wraps(func)
+    def wrap(*k: P.args, **kwargs: P.kwargs) -> R:
+        if kwargs:
+            raise Exception("Can't cache with kwargs")
+        lock.acquire()
+        try:
+            if k in busy:
+                event = busy[k]
+                lock.release()
+                event.wait()
+                lock.acquire()
+            elif k not in cache:
+                busy[k] = threading.Event()
+                lock.release()
+                try:
+                    res = func(*k, **kwargs)
+                    lock.acquire()
+                    cache[k] = res
+                except Exception as ex:
+                    lock.acquire()
+                    raise ex
+                finally:
+                    busy[k].set()
+                    del busy[k]
+            return cache[k]
+        finally:
+            lock.release()
+
+    return wrap
+
+
+@cache_threaded
 def fetch_json(uri: str) -> Dict[str, Any]:
-    cache: Dict[str, Dict[str, Any]] = getattr(fetch_json, "cache", {})
-    if not cache:
-        setattr(fetch_json, "cache", cache)
-    if uri not in cache:
-        if uri.startswith("file://"):
-            cache[uri] = json.loads(open(uri[7:], encoding="utf-8-sig").read())
-        else:
-            cache[uri] = json.loads(requests.get(uri, allow_redirects=True).content)
-    return cache[uri]
+    if uri.startswith("file://"):
+        return json.loads(open(uri[7:], encoding="utf-8-sig").read())
+    else:
+        return json.loads(requests.get(uri, allow_redirects=True).content)
 
 
 def pack_path(s: str):
