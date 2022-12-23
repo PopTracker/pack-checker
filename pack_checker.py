@@ -1,8 +1,6 @@
 #!/usr/bin/python
 
 import argparse
-import jsonc_parser.errors
-import jsonc_parser.parser
 import json
 import os.path
 import re
@@ -11,7 +9,7 @@ from collections import namedtuple
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional, TextIO, Tuple
 from urllib.parse import urlparse
 
 
@@ -22,18 +20,24 @@ schema_names = ["items", "layouts", "locations", "manifest", "maps"]
 Item = namedtuple("Item", "name type data")
 
 trailing_regex = re.compile(r"(\".*?\"|\'.*?\')|,(\s*[\]\}])", re.MULTILINE | re.DOTALL)
-comment_regex = jsonc_parser.parser.JsoncParser.regex
+comment_regex = re.compile(r"(\".*?\"|\'.*?\')|(/\*.*?\*/|//[^\r\n]*$)", re.MULTILINE | re.DOTALL)
+# comment_regex from jsonc-parser: https://github.com/NickolaiBeloguzov/jsonc-parser
 
 
-def fetch_json(uri: str):
-    if not hasattr(fetch_json, "cache"):
-        fetch_json.cache = {}
-    if uri not in fetch_json.cache:
+class ParserError(Exception):
+    pass
+
+
+def fetch_json(uri: str) -> Dict[str, Any]:
+    cache: Dict[str, Dict[str, Any]] = getattr(fetch_json, "cache", {})
+    if not cache:
+        setattr(fetch_json, "cache", cache)
+    if uri not in cache:
         if uri.startswith("file://"):
-            fetch_json.cache[uri] = json.loads(open(uri[7:], encoding="utf-8-sig").read())
+            cache[uri] = json.loads(open(uri[7:], encoding="utf-8-sig").read())
         else:
-            fetch_json.cache[uri] = json.loads(requests.get(uri, allow_redirects=True).content)
-    return fetch_json.cache[uri]
+            cache[uri] = json.loads(requests.get(uri, allow_redirects=True).content)
+    return cache[uri]
 
 
 def pack_path(s: str):
@@ -73,13 +77,13 @@ def parse_jsonc(s: str, name: Optional[str] = None) -> dict:
     try:
         return json.loads(s)
     except Exception as e:
-        raise jsonc_parser.errors.ParserError("{} file cannot be parsed (message: {})".format(name or s, str(e)))
+        raise ParserError("{} file cannot be parsed (message: {})".format(name or s, str(e)))
 
 
-def detect(name, stream, variants) -> Optional[Item]:
+def identify_json(name: str, stream: TextIO, variants: List[str]) -> Optional[Item]:
     try:
         data = parse_jsonc(stream.read())
-    except jsonc_parser.errors.ParserError as ex:
+    except ParserError as ex:
         raise Exception(f"Error parsing {name}: {ex.__context__}")
 
     if name == "settings.json":
@@ -101,13 +105,13 @@ def detect(name, stream, variants) -> Optional[Item]:
     return None
 
 
-def collect_json(path: Path):
+def collect_json(path: Path) -> Tuple[bool, List[Item]]:
     ok = True
     res = []
 
     try:
         manifest = parse_jsonc((path / "manifest.json").open(encoding="utf-8-sig").read())
-    except jsonc_parser.errors.ParserError as ex:
+    except ParserError as ex:
         print(f"Could not load manifest.json: {ex.__context__}")
         return False, []
 
@@ -119,7 +123,7 @@ def collect_json(path: Path):
         name = str(f.relative_to(path)).replace("\\", "/")
         stream = f.open(encoding="utf-8-sig")
         try:
-            item = detect(name, stream, variants)
+            item = identify_json(name, stream, variants)
             if item:
                 res.append(item)
         except Exception as ex:
@@ -130,9 +134,11 @@ def collect_json(path: Path):
 
 
 def check(path: Path, schema_src: str = schema_lax_src) -> bool:
-    ok, items = collect_json(path)
+    json_ok, json_items = collect_json(path)
+
+    ok = json_ok
     schema = {name: f"{schema_src}/{name}.json" for name in schema_names}
-    for item in items:
+    for item in json_items:
         if item.type in schema:
             try:
                 validate(
