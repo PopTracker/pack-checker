@@ -238,8 +238,10 @@ def collect_json(path: Path) -> Generator[Item, None, None]:
     return _CollectJson(path)()
 
 
-def check(path: Path, schema_src: str = schema_lax_src) -> bool:
+def check(path: Path, schema_src: str = schema_lax_src) -> int:
     schema = {name: f"{schema_src}/{name}.json" for name in schema_names}
+    ok = True
+    count = 0
 
     def validate_json_item(item: Item):
         try:
@@ -252,12 +254,13 @@ def check(path: Path, schema_src: str = schema_lax_src) -> bool:
             print(f"{item.name}: {ex}")
         return False
 
-    ok = True
-
     try:
         for json_item in collect_json(path):
             if json_item.type in schema:
-                ok = ok and validate_json_item(json_item)
+                if validate_json_item(json_item):
+                    count += 1
+                else:
+                    ok = False
             elif json_item.type == "settings":
                 pass
             elif json_item.type == "error":
@@ -272,12 +275,14 @@ def check(path: Path, schema_src: str = schema_lax_src) -> bool:
         print(f"Error collecting json: {ex}")
         return False
 
-    return ok
+    return count if ok else 0
 
 
 def main(args):
-    if not check(args.path, args.schema if args.schema else schema_strict_src if args.strict else schema_lax_src):
+    res = check(args.path, args.schema if args.schema else schema_strict_src if args.strict else schema_lax_src)
+    if not res:
         exit(1)
+    print(f"Validated {res} files")
 
 
 if __name__ == "__main__":
