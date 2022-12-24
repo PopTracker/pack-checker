@@ -11,7 +11,7 @@ from functools import wraps
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, ParamSpec, TextIO, Tuple, TypeVar
+from typing import Any, Callable, Dict, Generator, List, Optional, ParamSpec, TextIO, TypeVar
 from urllib.parse import urlparse
 
 
@@ -124,7 +124,7 @@ def identify_json(name: str, stream: TextIO, variants: List[str]) -> Optional[It
         raise Exception(f"Error parsing {name}: {ex.__context__}")
 
     if name == "settings.json":
-        return None
+        return Item(name, "settings", data)
     if name == "manifest.json":
         return Item(name, "manifest", data)
     for variant in variants:
@@ -138,19 +138,15 @@ def identify_json(name: str, stream: TextIO, variants: List[str]) -> Optional[It
             return Item(name, "locations", data)
         elif name.startswith(variant + "layout"):
             return Item(name, "layouts", data)
-    print(f"Unmatched file: {name}")
+
     return None
 
 
-def collect_json(path: Path) -> Tuple[bool, List[Item]]:
-    ok = True
-    res = []
-
+def collect_json(path: Path) -> Generator[Item, None, None]:
     try:
         manifest = parse_jsonc((path / "manifest.json").open(encoding="utf-8-sig").read())
     except ParserError as ex:
-        print(f"Could not load manifest.json: {ex.__context__}")
-        return False, []
+        raise Exception(f"Could not load manifest.json: {ex.__context__}")
 
     variants = list(manifest["variants"].keys()) if "variants" in manifest else [""]
     if "" not in variants:
@@ -158,36 +154,53 @@ def collect_json(path: Path) -> Tuple[bool, List[Item]]:
 
     for f in path.rglob("*.json"):
         name = str(f.relative_to(path)).replace("\\", "/")
-        stream = f.open(encoding="utf-8-sig")
-        try:
-            item = identify_json(name, stream, variants)
-            if item:
-                res.append(item)
-        except Exception as ex:
-            print(ex)
-            ok = False
-
-    return ok, res
+        with f.open(encoding="utf-8-sig") as stream:
+            try:
+                item = identify_json(name, stream, variants)
+                if item:
+                    yield item
+                else:
+                    yield Item(name, None, None)
+            except Exception as ex:
+                yield Item(name, "error", ex)
 
 
 def check(path: Path, schema_src: str = schema_lax_src) -> bool:
-    json_ok, json_items = collect_json(path)
-
-    ok = json_ok
     schema = {name: f"{schema_src}/{name}.json" for name in schema_names}
-    for item in json_items:
-        if item.type in schema:
-            try:
-                validate(
-                    instance=item.data,
-                    schema=fetch_json(schema[item.type])
-                )
-            except ValidationError as ex:
-                print(f"{item.name}: {ex}")
-                ok = False
+
+    def validate_json_item(item: Item):
+        try:
+            validate(
+                instance=item.data,
+                schema=fetch_json(schema[item.type])
+            )
+            return True
+        except ValidationError as ex:
+            print(f"{item.name}: {ex}")
+        return False
+
+    ok = True
+
+    try:
+        json_items = collect_json(path)
+    except Exception as ex:
+        print(ex)
+        return False
+
+    for json_item in json_items:
+        if json_item.type in schema:
+            ok = ok and validate_json_item(json_item)
+        elif json_item.type == "settings":
+            pass
+        elif json_item.type == "error":
+            print(json_item.data)
+            ok = False
+        elif json_item.type is None:
+            print(f"Unmatched file: {json_item.name}")
         else:
             print("No schema {item.type} for {item.name}")
             ok = False
+
     return ok
 
 
