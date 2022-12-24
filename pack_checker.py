@@ -119,7 +119,7 @@ def parse_jsonc(s: str, name: Optional[str] = None) -> dict:
 
 def identify_json(name: str, stream: TextIO, variants: List[str]) -> Optional[Item]:
     try:
-        data = parse_jsonc(stream.read())
+        data = parse_jsonc(stream.read(), name)
     except ParserError as ex:
         raise Exception(f"Error parsing {name}: {ex.__context__}")
 
@@ -182,24 +182,22 @@ def check(path: Path, schema_src: str = schema_lax_src) -> bool:
     ok = True
 
     try:
-        json_items = collect_json(path)
+        for json_item in collect_json(path):
+            if json_item.type in schema:
+                ok = ok and validate_json_item(json_item)
+            elif json_item.type == "settings":
+                pass
+            elif json_item.type == "error":
+                print(json_item.data)
+                ok = False
+            elif json_item.type is None:
+                print(f"Unmatched file: {json_item.name}")
+            else:
+                print("No schema {item.type} for {item.name}")
+                ok = False
     except Exception as ex:
-        print(ex)
+        print(f"Error collecting json: {ex}")
         return False
-
-    for json_item in json_items:
-        if json_item.type in schema:
-            ok = ok and validate_json_item(json_item)
-        elif json_item.type == "settings":
-            pass
-        elif json_item.type == "error":
-            print(json_item.data)
-            ok = False
-        elif json_item.type is None:
-            print(f"Unmatched file: {json_item.name}")
-        else:
-            print("No schema {item.type} for {item.name}")
-            ok = False
 
     return ok
 
