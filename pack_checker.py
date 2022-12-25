@@ -4,22 +4,19 @@ import argparse
 import json
 import os.path
 import re
-import requests
-import threading
 import warnings
 import zipfile
 
 from collections import namedtuple
-from functools import wraps
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError
+from jsonschema.validators import RefResolver
 from pathlib import Path
-from typing import Any, Callable, cast, Dict, Generator, Generic, Iterator, List, Optional, ParamSpec, TextIO, TypeVar
+from typing import Any, cast, Generator, Generic, Iterator, List, Optional, ParamSpec, TextIO, TypeVar
 from urllib.parse import urlparse
 
 
-schema_lax_src = "https://poptracker.github.io/schema/packs"
-schema_strict_src = "https://poptracker.github.io/schema/packs/strict"
+schema_default_src = "https://poptracker.github.io/schema/packs/"
 schema_names = ["items", "layouts", "locations", "manifest", "maps"]
 
 Item = namedtuple("Item", "name type data")
@@ -27,53 +24,6 @@ Item = namedtuple("Item", "name type data")
 trailing_regex = re.compile(r"(\".*?\"|\'.*?\')|,(\s*[\]\}])", re.MULTILINE | re.DOTALL)
 comment_regex = re.compile(r"(\".*?\"|\'.*?\')|(/\*.*?\*/|//[^\r\n]*$)", re.MULTILINE | re.DOTALL)
 # comment_regex from jsonc-parser: https://github.com/NickolaiBeloguzov/jsonc-parser
-
-P = ParamSpec("P")
-R = TypeVar("R")
-
-
-def cache_threaded(func: Callable[P, R]) -> Callable[P, R]:
-    lock = threading.Lock()
-    cache: Dict[P.args, R] = {}
-    busy: Dict[P.args, threading.Event] = {}
-
-    @wraps(func)
-    def wrap(*k: P.args, **kwargs: P.kwargs) -> R:
-        if kwargs:
-            raise Exception("Can't cache with kwargs")
-        lock.acquire()
-        try:
-            if k in busy:
-                event = busy[k]
-                lock.release()
-                event.wait()
-                lock.acquire()
-            elif k not in cache:
-                busy[k] = threading.Event()
-                lock.release()
-                try:
-                    res = func(*k, **kwargs)
-                    lock.acquire()
-                    cache[k] = res
-                except Exception as ex:
-                    lock.acquire()
-                    raise ex
-                finally:
-                    busy[k].set()
-                    del busy[k]
-            return cache[k]
-        finally:
-            lock.release()
-
-    return wrap
-
-
-@cache_threaded
-def fetch_json(uri: str) -> Dict[str, Any]:
-    if uri.startswith("file://"):
-        return json.loads(open(uri[7:], encoding="utf-8-sig").read())
-    else:
-        return json.loads(requests.get(uri, allow_redirects=True).content)
 
 
 def pack_path(s: str):
@@ -87,9 +37,10 @@ def pack_path(s: str):
 def schema_uri(s: str):
     uri = urlparse(s)
     if uri.scheme:
-        return s
+        return s if s.endswith("/") else (s + "/")
     else:
-        return f"file://{s}"
+        s = os.path.abspath(s).replace('\\', '/')
+        return f"file://{s}/"
 
 
 class ParserError(Exception):
@@ -238,16 +189,21 @@ def collect_json(path: Path) -> Generator[Item, None, None]:
     return _CollectJson(path)()
 
 
-def check(path: Path, schema_src: str = schema_lax_src) -> int:
-    schema = {name: f"{schema_src}/{name}.json" for name in schema_names}
+def check(path: Path, schema_src: str = schema_default_src, strict: bool = False) -> int:
     ok = True
     count = 0
+
+    resolver = RefResolver(
+        base_uri=schema_src,
+        referrer=True,
+    )
 
     def validate_json_item(item: Item):
         try:
             validate(
                 instance=item.data,
-                schema=fetch_json(schema[item.type])
+                schema={"$ref": f"strict/{item.type}.json" if strict else f"{item.type}.json"},
+                resolver=resolver,
             )
             return True
         except ValidationError as ex:
@@ -256,7 +212,7 @@ def check(path: Path, schema_src: str = schema_lax_src) -> int:
 
     try:
         for json_item in collect_json(path):
-            if json_item.type in schema:
+            if json_item.type in schema_names:
                 if validate_json_item(json_item):
                     count += 1
                 else:
@@ -279,7 +235,7 @@ def check(path: Path, schema_src: str = schema_lax_src) -> int:
 
 
 def main(args):
-    res = check(args.path, args.schema if args.schema else schema_strict_src if args.strict else schema_lax_src)
+    res = check(args.path, args.schema if args.schema else schema_default_src, args.strict)
     if not res:
         exit(1)
     print(f"Validated {res} files")
@@ -288,7 +244,6 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("path", type=pack_path, metavar="path/to/pack", help="path to the pack to check")
-    schema_src_group = parser.add_mutually_exclusive_group()
-    schema_src_group.add_argument("--strict", action='store_true', help="use strict json schema")
-    schema_src_group.add_argument("--schema", type=schema_uri, help="use custom schema source", metavar="folder/url")
+    parser.add_argument("--strict", action='store_true', help="use strict json schema")
+    parser.add_argument("--schema", type=schema_uri, help="use custom schema source", metavar="folder/url")
     main(parser.parse_args())
