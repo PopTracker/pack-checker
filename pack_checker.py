@@ -195,7 +195,7 @@ def check(path: Path, schema_src: str = schema_default_src, strict: bool = False
 
     resolver = RefResolver(
         base_uri=schema_src,
-        referrer=True,
+        referrer=True,  # type: ignore[arg-type]  # passing true as per official documentation
     )
 
     def validate_json_item(item: Item):
