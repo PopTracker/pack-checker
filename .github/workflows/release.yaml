@@ -40,7 +40,7 @@ jobs:
         shell: bash
         run: |
           python -m pip install -U -r requirements.txt
-          python -m pip install -U pyinstaller
+          python -m pip install -U pyinstaller certifi
           python -m PyInstaller -F pack_checker.py
           cp README* dist/
           mkdir rls

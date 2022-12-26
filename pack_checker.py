@@ -7,6 +7,18 @@ import re
 import warnings
 import zipfile
 
+try:
+    import certifi
+    import ssl
+    import urllib.request
+    context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=certifi.where())
+    context.set_alpn_protocols(['http/1.1'])
+    https_handler = urllib.request.HTTPSHandler(context=context)
+    opener = urllib.request.build_opener(https_handler)
+    urllib.request.install_opener(opener)
+except ImportError:
+    pass
+
 from collections import namedtuple
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError
