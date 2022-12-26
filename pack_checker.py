@@ -234,16 +234,29 @@ def check(path: Path, schema_src: str = schema_default_src, strict: bool = False
     return count if ok else 0
 
 
-def main(args):
+def main(args) -> int:
     res = check(args.path, args.schema if args.schema else schema_default_src, args.strict)
-    if not res:
-        exit(1)
-    print(f"Validated {res} files")
+    if res:
+        print(f"Validated {res} files")
+    if args.interactive:
+        try:
+            input("\nPress enter to close.")
+        except ValueError:
+            pass
+    return 0 if res else 1
 
 
 if __name__ == "__main__":
+    import platform
+    import sys
+    is_windows = "windows" in platform.system().lower()
     parser = argparse.ArgumentParser()
     parser.add_argument("path", type=pack_path, metavar="path/to/pack", help="path to the pack to check")
-    parser.add_argument("--strict", action='store_true', help="use strict json schema")
+    parser.add_argument("--strict", action="store_true", help="use strict json schema")
     parser.add_argument("--schema", type=schema_uri, help="use custom schema source", metavar="folder/url")
-    main(parser.parse_args())
+    interactive_group = parser.add_mutually_exclusive_group()
+    interactive_group.add_argument("-i", "--interactive", action="store_true", default=is_windows,
+                                   help="keep console open when done (default on Windows)")
+    interactive_group.add_argument("-b", "--batch", action="store_false", dest="interactive",
+                                   help="exit program when done (default on non-Windows)")
+    sys.exit(main(parser.parse_args()))
