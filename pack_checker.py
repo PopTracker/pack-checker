@@ -12,7 +12,7 @@ from jsonschema import validate
 from jsonschema.exceptions import ValidationError
 from jsonschema.validators import RefResolver
 from pathlib import Path
-from typing import Any, cast, Generator, Generic, Iterator, List, Optional, ParamSpec, TextIO, TypeVar
+from typing import Any, cast, Generator, Generic, Iterator, List, Optional, TextIO, TypeVar
 from urllib.parse import urlparse
 
 
