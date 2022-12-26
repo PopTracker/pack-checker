@@ -43,13 +43,13 @@ jobs:
           cp README* dist/
           mkdir rls
       - name: ZIP
-        if: runner.os == "Windows"
+        if: ${{ runner.os == 'Windows' }}
         shell: bash
         run: |
           cd dist
           7z a -mx=9 "../rls/pack-checker_${{ env.RELEASE_VERSION }}_${{ matrix.name }}.zip" *
       - name: TAR GZ
-        if: runner.os != "Windows"
+        if: ${{ runner.os != 'Windows' }}
         shell: bash
         run: |
           cd dist
