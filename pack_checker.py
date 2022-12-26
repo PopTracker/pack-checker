@@ -16,6 +16,10 @@ from typing import Any, cast, Generator, Generic, Iterator, List, Optional, Para
 from urllib.parse import urlparse
 
 
+__version_info__ = (1, 0, 0)
+__version__ = ".".join(map(str, __version_info__))
+
+
 schema_default_src = "https://poptracker.github.io/schema/packs/"
 schema_names = ["items", "layouts", "locations", "manifest", "maps"]
 
@@ -235,6 +239,7 @@ def check(path: Path, schema_src: str = schema_default_src, strict: bool = False
 
 
 def main(args) -> int:
+    print(f"PopTracker pack_checker {__version__}")
     res = check(args.path, args.schema if args.schema else schema_default_src, args.strict)
     if res:
         print(f"Validated {res} files")
