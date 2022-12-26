@@ -1,0 +1,67 @@
+name: Release
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  release:
+    name: Release for ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: []
+        py: []
+        name: []
+        include:
+          - os: windows-latest
+            py: "3.7"
+            name: "win64"
+          - os: ubuntu-20.04
+            py: "3.10"
+            name: "ubuntu-amd64"
+          - os: macos-latest
+            py: "3.10"
+            name: "macos"
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Set env
+        shell: bash
+        run: |
+          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install python ${{ matrix.py }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.py }}
+      - name: Build exe
+        shell: bash
+        run: |
+          python -m pip install -U -r requirements.txt
+          python -m pip install -U pyinstaller
+          python -m PyInstaller -F pack_checker.py
+          cp README* dist/
+          mkdir rls
+      - name: ZIP
+        if: runner.os == "Windows"
+        shell: bash
+        run: |
+          cd dist
+          7z a -mx=9 "../rls/pack-checker_${{ env.RELEASE_VERSION }}_${{ matrix.name }}.zip" *
+      - name: TAR GZ
+        if: runner.os != "Windows"
+        shell: bash
+        run: |
+          cd dist
+          tar -czvf "../rls/pack-checker_${{ env.RELEASE_VERSION }}_${{ matrix.name }}.tar.gz" *
+      - name: Create Release
+        uses: softprops/action-gh-release@b7e450da2a4b4cb4bfbae528f788167786cfcedf
+        with:
+          draft: true
+          name: pack-checker v${{ env.RELEASE_VERSION }}
+          files: |
+            ./rls/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
