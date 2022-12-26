@@ -27,7 +27,9 @@ jobs:
       - name: Set env
         shell: bash
         run: |
-          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
+          RELEASE_VERSION="${GITHUB_REF#refs/*/v}"
+          echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_ENV
+          echo "RELEASE_NAME=${RELEASE_VERSION/./}" >> $GITHUB_ENV
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install python ${{ matrix.py }}
@@ -47,13 +49,13 @@ jobs:
         shell: bash
         run: |
           cd dist
-          7z a -mx=9 "../rls/pack-checker_${{ env.RELEASE_VERSION }}_${{ matrix.name }}.zip" *
+          7z a -mx=9 "../rls/pack-checker_${{ env.RELEASE_NAME }}_${{ matrix.name }}.zip" *
       - name: TAR GZ
         if: ${{ runner.os != 'Windows' }}
         shell: bash
         run: |
           cd dist
-          tar -czvf "../rls/pack-checker_${{ env.RELEASE_VERSION }}_${{ matrix.name }}.tar.gz" *
+          tar -czvf "../rls/pack-checker_${{ env.RELEASE_NAME }}_${{ matrix.name }}.tar.gz" *
       - name: Create Release
         uses: softprops/action-gh-release@b7e450da2a4b4cb4bfbae528f788167786cfcedf
         with:
