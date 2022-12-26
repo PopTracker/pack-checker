@@ -10,9 +10,7 @@ jobs:
 
     strategy:
       matrix:
-        os: []
-        py: []
-        name: []
+        os: [windows-latest, ubuntu-20.04, macos-latest]
         include:
           - os: windows-latest
             py: "3.7"
