@@ -218,7 +218,7 @@ def check(path: Path, schema_src: str = schema_default_src, strict: bool = False
         referrer=True,  # type: ignore[arg-type]  # passing true as per official documentation
     )
 
-    def validate_json_item(item: Item):
+    def validate_json_item(item: Item) -> bool:
         try:
             validate(
                 instance=item.data,
