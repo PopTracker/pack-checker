@@ -206,10 +206,14 @@ def collect_json(path: Path) -> Generator[Item, None, None]:
 
 
 def check(path: Path, schema_src: str = schema_default_src, strict: bool = False) -> int:
-    ok = True
-    count = 0
+    class CustomResolver(RefResolver):
+        if schema_src != schema_default_src:
+            def push_scope(self, scope: str):
+                if scope.startswith(schema_default_src):
+                    scope = schema_src + scope[len(schema_default_src):]
+                super().push_scope(scope)
 
-    resolver = RefResolver(
+    resolver = CustomResolver(
         base_uri=schema_src,
         referrer=True,  # type: ignore[arg-type]  # passing true as per official documentation
     )
@@ -225,6 +229,9 @@ def check(path: Path, schema_src: str = schema_default_src, strict: bool = False
         except ValidationError as ex:
             print(f"{item.name}: {ex}")
         return False
+
+    ok = True
+    count = 0
 
     try:
         for json_item in collect_json(path):
