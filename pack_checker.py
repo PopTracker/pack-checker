@@ -52,10 +52,12 @@ def pack_path(s: str):
 
 def schema_uri(s: str):
     uri = urlparse(s)
-    if uri.scheme:
+    if len(uri.scheme) > 1:  # > 1 to ignore windows drive letters
         return s if s.endswith("/") else (s + "/")
     else:
         s = os.path.abspath(s).replace('\\', '/')
+        if uri.scheme:  # path starts with a drive letter
+            s = "/" + s  # convert to absolute path
         return f"file://{s}/"
 
 
