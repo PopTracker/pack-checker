@@ -42,7 +42,7 @@ comment_regex = re.compile(r"(\".*?\"|\'.*?\')|(/\*.*?\*/|//[^\r\n]*$)", re.MULT
 # comment_regex from jsonc-parser: https://github.com/NickolaiBeloguzov/jsonc-parser
 
 
-def pack_path(s: str):
+def pack_path(s: str) -> Path:
     if os.path.isdir(s):
         return Path(s)
     if os.path.isfile(s) and s.lower().endswith(".zip"):
@@ -50,7 +50,7 @@ def pack_path(s: str):
     raise argparse.ArgumentTypeError(f"Given argument is not a pack")
 
 
-def schema_uri(s: str):
+def schema_uri(s: str) -> str:
     uri = urlparse(s)
     if len(uri.scheme) > 1:  # > 1 to ignore windows drive letters
         return s if s.endswith("/") else (s + "/")
@@ -65,14 +65,14 @@ class ParserError(Exception):
     pass
 
 
-def parse_jsonc(s: str, name: Optional[str] = None) -> dict:
-    def __re_sub_comment(match):
+def parse_jsonc(s: str, name: Optional[str] = None) -> Any:
+    def __re_sub_comment(match: re.Match[str]) -> str:
         if match.group(2) is not None:
             return ""
         else:
             return match.group(1)
 
-    def __re_sub_comma(match):
+    def __re_sub_comma(match: re.Match[str]) -> str:
         if match.group(2) is not None:
             return match.group(2)
         else:
@@ -116,7 +116,7 @@ def identify_json(name: str, stream: TextIO, variants: List[str]) -> Optional[It
 
 class ZipPath(zipfile.Path):
     @staticmethod
-    def _relative_to(child: str, parent: str):
+    def _relative_to(child: str, parent: str) -> str:
         if not parent.endswith("/"):
             parent += "/"
         if not child.startswith(parent):
@@ -131,7 +131,7 @@ class ZipPath(zipfile.Path):
             root = cast(zipfile.ZipFile, getattr(f, "root"))
             yield ZipPath(root, self._relative_to(str(f), str(root.filename)))
 
-    def open(self, mode="r", *args, **kwargs) -> Any:
+    def open(self, mode="r", *args, **kwargs) -> Any:  # type: ignore[no-untyped-def]
         return super().open(mode, *args, **kwargs)
 
     def rglob(self, pattern: str) -> Iterator["ZipPath"]:
@@ -210,7 +210,7 @@ def collect_json(path: Path) -> Generator[Item, None, None]:
 def check(path: Path, schema_src: str = schema_default_src, strict: bool = False) -> int:
     class CustomResolver(RefResolver):
         if schema_src != schema_default_src:
-            def push_scope(self, scope: str):
+            def push_scope(self, scope: str) -> None:
                 if scope.startswith(schema_default_src):
                     scope = schema_src + scope[len(schema_default_src):]
                 super().push_scope(scope)
@@ -263,7 +263,7 @@ def check(path: Path, schema_src: str = schema_default_src, strict: bool = False
     return count if ok else 0
 
 
-def main(args) -> int:
+def main(args: argparse.Namespace) -> int:
     print(f"PopTracker pack_checker {__version__}")
     res = check(args.path, args.schema if args.schema else schema_default_src, args.strict)
     if res:
