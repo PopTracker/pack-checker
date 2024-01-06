@@ -33,7 +33,7 @@ __version__ = ".".join(map(str, __version_info__))
 
 
 schema_default_src = "https://poptracker.github.io/schema/packs/"
-schema_names = ["items", "layouts", "locations", "manifest", "maps"]
+schema_names = ["items", "layouts", "locations", "manifest", "maps", "settings"]
 
 Item = namedtuple("Item", "name type data")
 
@@ -242,8 +242,6 @@ def check(path: Path, schema_src: str = schema_default_src, strict: bool = False
                     count += 1
                 else:
                     ok = False
-            elif json_item.type == "settings":
-                pass
             elif json_item.type == "error":
                 print(json_item.data)
                 ok = False
