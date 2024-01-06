@@ -1,0 +1,37 @@
+name: CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  mypy:
+    name: mypy ${{ matrix.py }}
+
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            py: "3.8"  # oldest supported
+          - os: ubuntu-latest
+            py: "3.12"  # newest supported
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install python ${{ matrix.py }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.py }}
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install -U pip
+          python -m pip install -U -r requirements.txt
+          python -m pip install -U mypy certify types-certify types-jsonschema
+      - name: Run mypy
+        shell: bash
+        run: |
+          python -m mypy --strict pack_checker.py
