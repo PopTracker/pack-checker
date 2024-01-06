@@ -21,7 +21,7 @@ except ImportError:
 
 from collections import namedtuple
 from jsonschema import validate
-from jsonschema.exceptions import ValidationError
+from jsonschema.exceptions import RefResolutionError, ValidationError
 from jsonschema.validators import RefResolver
 from pathlib import Path
 from typing import Any, cast, Generator, Generic, Iterator, List, Optional, TextIO, TypeVar
@@ -229,7 +229,13 @@ def check(path: Path, schema_src: str = schema_default_src, strict: bool = False
             )
             return True
         except ValidationError as ex:
-            print(f"{item.name}: {ex}")
+            print(f"\n{item.name}: {ex}")
+        except RefResolutionError as ex:
+            msg = f"Error loading schema {'strict/' if strict else ''}{item.type}.json: {ex}"
+            raise Exception(msg) from ex
+        except Exception as ex:
+            print(f"{ex} while handling {item.name} {type(ex)}")
+            raise
         return False
 
     ok = True
