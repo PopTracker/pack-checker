@@ -20,12 +20,15 @@ except ImportError:
     pass
 
 from collections import namedtuple
+from referencing import Registry, Resource
+from referencing.exceptions import NoSuchResource, Unresolvable
+from referencing.jsonschema import DRAFT202012
 from jsonschema import validate
-from jsonschema.exceptions import RefResolutionError, ValidationError
-from jsonschema.validators import RefResolver
+from jsonschema.exceptions import ValidationError
 from pathlib import Path
-from typing import Any, cast, Generator, Generic, Iterator, List, Optional, TextIO, TypeVar
+from typing import Any, cast, Callable, Dict, Generator, Generic, Iterator, List, Optional, TextIO, TypeVar, Union
 from urllib.parse import urlparse
+from urllib.request import urlopen
 
 
 __version_info__ = (1, 0, 1)
@@ -208,29 +211,47 @@ def collect_json(path: Path) -> Generator[Item, None, None]:
 
 
 def check(path: Path, schema_src: str = schema_default_src, strict: bool = False) -> int:
-    class CustomResolver(RefResolver):
-        if schema_src != schema_default_src:
-            def push_scope(self, scope: str) -> None:
-                if scope.startswith(schema_default_src):
-                    scope = schema_src + scope[len(schema_default_src):]
-                super().push_scope(scope)
+    resource_cache: Dict[str, Union[Exception, Resource[Any]]] = {}
 
-    resolver = CustomResolver(
-        base_uri=schema_src,
-        referrer=True,  # type: ignore[arg-type]  # passing true as per official documentation
-    )
+    def cached(f: Callable[[str], Resource[Any]]) -> Callable[[str], Resource[Any]]:
+        def wrap(uri: str) -> Resource[Any]:
+            cached_res = resource_cache.get(uri)
+            if isinstance(cached_res, Exception):
+                raise cached_res
+            elif cached_res is not None:
+                return cached_res
+            try:
+                res = f(uri)
+                resource_cache[uri] = res
+                return res
+            except Exception as ex:
+                resource_cache[uri] = NoSuchResource(ref=uri)  # type: ignore[call-arg]  # passing ref as per docs
+                raise NoSuchResource(ref=uri) from ex  # type: ignore[call-arg]
+        return wrap
+
+    @cached  # we cache here since registry is immutable
+    def retrieve(uri: str) -> Resource[Any]:
+        if "://" in uri or uri.startswith("/"):
+            raise NotImplementedError()
+        full_uri = schema_src + uri
+        r = urlopen(full_uri)
+        content = r.read().decode(r.headers.get_content_charset() or "utf-8")
+        return Resource.from_contents(json.loads(content),
+                                      default_specification=DRAFT202012)
+
+    registry: Registry[Any] = Registry(retrieve=retrieve)  # type: ignore[call-arg]  # passing retrieve as per docs
 
     def validate_json_item(item: Item) -> bool:
         try:
             validate(
                 instance=item.data,
                 schema={"$ref": f"strict/{item.type}.json" if strict else f"{item.type}.json"},
-                resolver=resolver,
+                registry=registry,
             )
             return True
         except ValidationError as ex:
             print(f"\n{item.name}: {ex}")
-        except RefResolutionError as ex:
+        except Unresolvable as ex:
             msg = f"Error loading schema {'strict/' if strict else ''}{item.type}.json: {ex}"
             raise Exception(msg) from ex
         except Exception as ex:
