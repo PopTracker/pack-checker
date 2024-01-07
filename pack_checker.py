@@ -32,7 +32,7 @@ from urllib.parse import urlparse
 from urllib.request import urlopen
 
 
-__version_info__ = (1, 0, 1)
+__version_info__ = (1, 1, 1)
 __version__ = ".".join(map(str, __version_info__))
 
 
