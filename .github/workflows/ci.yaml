@@ -73,3 +73,13 @@ jobs:
         shell: bash
         run: |
           python pack_checker.py --schema PopTracker/schema/packs --strict PopTracker/examples/uat-example
+      - name: Check an example (zip)
+        shell: bash
+        run: |
+          cd PopTracker/examples
+          zip -r uat-example1.zip uat-example  # folder in zip
+          cd uat-example
+          zip -r ../uat-example2.zip *  # files directly in zip
+          cd ../../..
+          python pack_checker.py --schema PopTracker/schema/packs --strict PopTracker/examples/uat-example1.zip
+          python pack_checker.py --schema PopTracker/schema/packs --strict PopTracker/examples/uat-example2.zip
