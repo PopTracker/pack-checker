@@ -134,9 +134,6 @@ class ZipPath(zipfile.Path):
             root = cast(zipfile.ZipFile, getattr(f, "root"))
             yield ZipPath(root, self._relative_to(str(f), str(root.filename)))
 
-    def open(self, mode="r", *args, **kwargs) -> Any:  # type: ignore[no-untyped-def]
-        return super().open(mode, *args, **kwargs)
-
     def rglob(self, pattern: str) -> Iterator["ZipPath"]:
         import fnmatch
         root = cast(zipfile.ZipFile, getattr(self, "root"))
