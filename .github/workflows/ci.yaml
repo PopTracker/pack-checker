@@ -30,7 +30,7 @@ jobs:
         run: |
           python -m pip install -U pip
           python -m pip install -U -r requirements.txt
-          python -m pip install -U mypy certify types-certify types-jsonschema
+          python -m pip install -U mypy certifi types-certifi types-jsonschema
       - name: Run mypy
         shell: bash
         run: |
