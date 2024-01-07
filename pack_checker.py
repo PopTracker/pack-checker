@@ -129,7 +129,7 @@ class ZipPath(zipfile.Path):
         return child[len(parent):]
 
     def open(self, *args: Any, **kwargs: Any) -> Any:
-        if "encoding" in kwargs:
+        if "encoding" in kwargs and sys.version_info < (3, 9, 0):
             kwargs.pop("encoding")
             return io.TextIOWrapper(super().open(*args, **kwargs), encoding="utf-8-sig")
         return super().open(*args, **kwargs)
