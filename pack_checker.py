@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import argparse
+import io
 import json
 import os.path
 import re
@@ -69,13 +70,13 @@ class ParserError(Exception):
 
 
 def parse_jsonc(s: str, name: Optional[str] = None) -> Any:
-    def __re_sub_comment(match: re.Match[str]) -> str:
+    def __re_sub_comment(match: "re.Match[str]") -> str:
         if match.group(2) is not None:
             return ""
         else:
             return match.group(1)
 
-    def __re_sub_comma(match: re.Match[str]) -> str:
+    def __re_sub_comma(match: "re.Match[str]") -> str:
         if match.group(2) is not None:
             return match.group(2)
         else:
@@ -127,6 +128,17 @@ class ZipPath(zipfile.Path):
             raise Exception(f"{parent} is not a parent of {child}")
         return child[len(parent):]
 
+    def open(self, *args: Any, **kwargs: Any) -> Any:
+        if "encoding" in kwargs:
+            kwargs.pop("encoding")
+            return io.TextIOWrapper(super().open(*args, **kwargs), encoding="utf-8-sig")
+        return super().open(*args, **kwargs)
+
+    def __truediv__(self, other: Union[str, "os.PathLike[str]"]) -> "ZipPath":
+        res = super().__truediv__(other)
+        res.__class__ = self.__class__
+        return cast(ZipPath, res)
+
     def relative_to(self, other: zipfile.Path, *extra: Union[str, "os.PathLike[str]"]) -> str:
         assert not extra, "extra for ZipPath.relative_to not implemented"
         return self._relative_to(str(self), str(other))
@@ -155,7 +167,7 @@ class _CollectJson(Generic[APath]):
     def __call__(self) -> Generator[Item, None, None]:
         path = self.path
         try:
-            # py3.8 mypy does not know encoding
+            # py3.8 does not know encoding
             manifest = parse_jsonc(cast(TextIO, (path / "manifest.json")
                                         .open(encoding="utf-8-sig")).read())  # type: ignore[call-arg, unused-ignore]
         except ParserError as ex:
