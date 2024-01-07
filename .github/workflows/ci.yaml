@@ -37,7 +37,14 @@ jobs:
           python -m mypy --strict pack_checker.py
 
   check-example-pack:
-    name: Check example pack
+    name: Check example pack with py${{ matrix.py }}
+
+    strategy:
+      matrix:
+        py:
+          - "3.8"  # oldest supported
+          - "3.12"  # newest supported
+
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
