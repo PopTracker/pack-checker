@@ -43,6 +43,7 @@ jobs:
       matrix:
         py:
           - "3.8"  # oldest supported
+          - "3.9"
           - "3.12"  # newest supported
 
     runs-on: ubuntu-latest
