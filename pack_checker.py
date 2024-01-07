@@ -118,6 +118,7 @@ def identify_json(name: str, stream: TextIO, variants: List[str]) -> Optional[It
 
 
 class ZipPath(zipfile.Path):
+    """Emulates pathlib.Path (and py3.12 zipfile.Path) behavior on py3.8"""
     @staticmethod
     def _relative_to(child: str, parent: str) -> str:
         if not parent.endswith("/"):
@@ -126,8 +127,9 @@ class ZipPath(zipfile.Path):
             raise Exception(f"{parent} is not a parent of {child}")
         return child[len(parent):]
 
-    def relative_to(self, parent: "ZipPath") -> str:
-        return self._relative_to(str(self), str(parent))
+    def relative_to(self, other: zipfile.Path, *extra: Union[str, "os.PathLike[str]"]) -> str:
+        assert not extra, "extra for ZipPath.relative_to not implemented"
+        return self._relative_to(str(self), str(other))
 
     def iterdir(self) -> Iterator["ZipPath"]:
         for f in super().iterdir():
@@ -153,7 +155,9 @@ class _CollectJson(Generic[APath]):
     def __call__(self) -> Generator[Item, None, None]:
         path = self.path
         try:
-            manifest = parse_jsonc(cast(TextIO, (path / "manifest.json").open(encoding="utf-8-sig")).read())
+            # py3.8 mypy does not know encoding
+            manifest = parse_jsonc(cast(TextIO, (path / "manifest.json")
+                                        .open(encoding="utf-8-sig")).read())  # type: ignore[call-arg, unused-ignore]
         except ParserError as ex:
             raise Exception(f"Could not load manifest.json: {ex.__context__}")
         except FileNotFoundError:
@@ -167,7 +171,7 @@ class _CollectJson(Generic[APath]):
 
         for f in path.rglob("*.json"):
             name = str(f.relative_to(path)).replace("\\", "/")
-            with f.open(encoding="utf-8-sig") as stream:
+            with f.open(encoding="utf-8-sig") as stream:  # type: ignore[call-arg, unused-ignore]
                 try:
                     item = identify_json(name, cast(TextIO, stream), variants)
                     if item:
