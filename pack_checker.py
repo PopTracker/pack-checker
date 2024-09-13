@@ -181,7 +181,7 @@ class _CollectJson(Generic[APath]):
         if "" not in variants:
             variants.append("")
 
-        for f in path.rglob("*.json"):
+        for f in path.rglob("*.json*"):
             name = str(f.relative_to(path)).replace("\\", "/")
             with f.open(encoding="utf-8-sig") as stream:  # type: ignore[call-arg, unused-ignore]
                 try:
