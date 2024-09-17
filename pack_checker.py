@@ -167,7 +167,7 @@ class _CollectJson(Generic[APath]):
 
         for f in path.rglob("*.json*"):
             name = str(f.relative_to(path)).replace("\\", "/")
-            bin_read = "r" if PY < (3, 9) else "rb"
+            bin_read = "r" if PY < (3, 9) and isinstance(path, ZipPath) else "rb"
             with f.open(mode=bin_read) as bin_stream:
                 if bin_stream.read(3) == b"\xEF\xBB\xBF":
                     warn("File contains BOM but JSON files should not", f, 0)
@@ -210,7 +210,7 @@ class _CollectLua(Generic[APath]):
 
         for f in path.rglob("*.lua"):
             name = str(f.relative_to(path)).replace("\\", "/")
-            bin_read = "r" if PY < (3, 9) else "rb"
+            bin_read = "r" if PY < (3, 9) and isinstance(path, ZipPath) else "rb"
             with f.open(mode=bin_read) as bin_stream:
                 if bin_stream.read(3) == b"\xEF\xBB\xBF":
                     warn("File contains BOM but Lua files should not", f, 0, 0)
