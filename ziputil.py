@@ -2,7 +2,7 @@ import io
 import os
 import sys
 import zipfile
-from typing import Any, Iterator, Union, cast
+from typing import Any, Generator, Iterator, Optional, Union, cast
 
 
 class ZipPath(zipfile.Path):
@@ -35,8 +35,17 @@ class ZipPath(zipfile.Path):
             root = cast(zipfile.ZipFile, getattr(f, "root"))
             yield ZipPath(root, self._relative_to(str(f), str(root.filename)))
 
-    def rglob(self, pattern: str) -> Iterator["ZipPath"]:
+    def rglob(self, pattern: str, case_sensitive: Optional[bool] = None) -> Generator["ZipPath", None, None]:
         import fnmatch
         root = cast(zipfile.ZipFile, getattr(self, "root"))
-        for match in fnmatch.filter((zi.filename for zi in root.filelist), pattern):
-            yield ZipPath(root, match)
+        if case_sensitive:
+            for zi in root.filelist:
+                if fnmatch.fnmatchcase(zi.filename, pattern):
+                    yield ZipPath(root, zi.filename)
+        elif case_sensitive is None:
+            for match in fnmatch.filter((zi.filename for zi in root.filelist), pattern):
+                yield ZipPath(root, match)
+        else:
+            for zi in root.filelist:
+                if fnmatch.fnmatchcase(zi.filename.lower(), pattern):
+                    yield ZipPath(root, zi.filename)

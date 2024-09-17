@@ -155,6 +155,33 @@ def identify_json(name: str, stream: TextIO, variants: List[str]) -> Optional[It
     return None
 
 
+if PY < (3, 12):
+    from fnmatch import fnmatch, fnmatchcase
+
+
+    def _rglob_case(path: Path, pattern: str, case_sensitive: Optional[bool] = None, *args: Any, **kwargs: Any
+                    ) -> Generator[Path, None, None]:
+        if case_sensitive is None:
+            yield from _original_rglob(path, pattern, *args, **kwargs)
+        elif case_sensitive:
+            for candidate in _original_rglob(path, pattern, *args, **kwargs):
+                if fnmatchcase(str(candidate), pattern):
+                    yield candidate
+        else:
+            pattern = pattern.lower()
+            if "." in pattern:
+                candidates = _original_rglob(path, "*.*")
+            else:
+                candidates = _original_rglob(path, "*")
+            for candidate in candidates:
+                if fnmatch(str(candidate).lower(), pattern):
+                    yield candidate
+
+
+    _original_rglob = Path.rglob
+    Path.rglob = _rglob_case  # type: ignore[method-assign,assignment]
+
+
 class _CollectJson(Generic[APath]):
     path: APath
 
@@ -165,7 +192,7 @@ class _CollectJson(Generic[APath]):
         path = self.path
         manifest, variants = read_manifest(path)
 
-        for f in path.rglob("*.json*"):
+        for f in path.rglob("*.json*", case_sensitive=False):  # type: ignore[call-arg,unused-ignore]
             name = str(f.relative_to(path)).replace("\\", "/")
             bin_read = "r" if PY < (3, 9) and isinstance(path, ZipPath) else "rb"
             with f.open(mode=bin_read) as bin_stream:
@@ -208,7 +235,7 @@ class _CollectLua(Generic[APath]):
     def __call__(self) -> Generator[Item, None, None]:
         path = self.path
 
-        for f in path.rglob("*.lua"):
+        for f in path.rglob("*.lua", case_sensitive=False):  # type: ignore[call-arg,unused-ignore]
             name = str(f.relative_to(path)).replace("\\", "/")
             bin_read = "r" if PY < (3, 9) and isinstance(path, ZipPath) else "rb"
             with f.open(mode=bin_read) as bin_stream:
