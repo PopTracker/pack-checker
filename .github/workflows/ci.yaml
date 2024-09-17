@@ -14,6 +14,8 @@ jobs:
         include:
           - os: windows-latest
             py: "3.8"  # oldest supported
+          - os: macos-latest
+            py: "3.12"  # newest supported
           - os: ubuntu-latest
             py: "3.12"  # newest supported
 
