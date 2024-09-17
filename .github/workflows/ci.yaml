@@ -6,20 +6,17 @@ on:
 
 jobs:
   mypy:
-    name: mypy ${{ matrix.py }}
+    name: mypy ${{ matrix.py }} on ${{ matrix.os }}
 
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest]
-        include:
-          - os: windows-latest
-            py: "3.8"  # oldest supported
-          - os: macos-latest
-            py: "3.12"  # newest supported
-          - os: ubuntu-latest
-            py: "3.12"  # newest supported
-          - os: ubuntu-latest
-            py: "3.13"  # next
+        os:
+          - windows-latest  # WindowsPath
+          - ubuntu-latest  # PosixPath
+        py:
+          - "3.8"  # oldest supported
+          - "3.12"  # newest supported
+          - "3.13-dev"  # next
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -41,16 +38,23 @@ jobs:
           python -m mypy --strict pack_checker.py
 
   check-example-pack:
-    name: Check example pack with py${{ matrix.py }}
+    name: Check example pack with py${{ matrix.py }} on ${{ matrix.os }}
 
     strategy:
       matrix:
-        py:
-          - "3.8"  # oldest supported
-          - "3.9"
-          - "3.12"  # newest supported
+        include:
+          - os: windows-latest
+            py: "3.8"  # oldest supported
+          - os: ubuntu-latest
+            py: "3.9"
+          - os: macos-latest
+            py: "3.10"
+          - os: ubuntu-latest
+            py: "3.12"  # newest supported
+          - os: ubuntu-latest
+            py: "3.13-dev"  # next
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -73,18 +77,27 @@ jobs:
       - name: Check an example (live schema)
         shell: bash
         run: |
-          python pack_checker.py --strict PopTracker/examples/uat-example
+          python pack_checker.py --batch --strict PopTracker/examples/uat-example
       - name: Check an example (upstream schema)
         shell: bash
         run: |
-          python pack_checker.py --schema PopTracker/schema/packs --strict PopTracker/examples/uat-example
-      - name: Check an example (zip)
-        shell: bash
+          python pack_checker.py --batch --schema PopTracker/schema/packs --strict PopTracker/examples/uat-example
+      - name: Zip an example (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd PopTracker/examples
+          Compress-Archive -Path uat-example -Destination uat-example1.zip   # folder in zip
+          cd uat-example
+          Compress-Archive -Path * -Destination ../uat-example2.zip  # files directly in zip
+      - name: Zip an example (Non-windows)
+        if: runner.os != 'Windows'
         run: |
           cd PopTracker/examples
           zip -r uat-example1.zip uat-example  # folder in zip
           cd uat-example
           zip -r ../uat-example2.zip *  # files directly in zip
-          cd ../../..
-          python pack_checker.py --schema PopTracker/schema/packs --strict PopTracker/examples/uat-example1.zip
-          python pack_checker.py --schema PopTracker/schema/packs --strict PopTracker/examples/uat-example2.zip
+      - name: Check an example (zip)
+        shell: bash
+        run: |
+          python pack_checker.py --batch --schema PopTracker/schema/packs --strict PopTracker/examples/uat-example1.zip
+          python pack_checker.py --batch --schema PopTracker/schema/packs --strict PopTracker/examples/uat-example2.zip
