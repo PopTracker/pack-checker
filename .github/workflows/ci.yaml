@@ -18,6 +18,8 @@ jobs:
             py: "3.12"  # newest supported
           - os: ubuntu-latest
             py: "3.12"  # newest supported
+          - os: ubuntu-latest
+            py: "3.13"  # next
 
     runs-on: ${{ matrix.os }}
     steps:
