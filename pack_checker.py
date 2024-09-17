@@ -79,7 +79,7 @@ def schema_uri(s: str) -> str:
         return s if s.endswith("/") else (s + "/")
     else:
         s = os.path.abspath(s).replace('\\', '/')
-        if uri.scheme:  # path starts with a drive letter
+        if uri.scheme or len(s) > 1 and s[1] == ':':  # path starts with a drive letter
             s = "/" + s  # convert to absolute path
         return f"file://{s}/"
 
