@@ -3,6 +3,7 @@
 import argparse
 import json
 import os.path
+import sys
 import warnings
 
 try:
@@ -35,6 +36,8 @@ from ziputil import ZipPath
 
 __version_info__ = (1, 2, 0)
 __version__ = ".".join(map(str, __version_info__))
+
+PY = sys.version_info
 
 APath = TypeVar("APath", Path, ZipPath)
 
@@ -164,7 +167,8 @@ class _CollectJson(Generic[APath]):
 
         for f in path.rglob("*.json*"):
             name = str(f.relative_to(path)).replace("\\", "/")
-            with f.open("rb") as bin_stream:
+            bin_read = "r" if PY < (3, 9) else "rb"
+            with f.open(mode=bin_read) as bin_stream:
                 if bin_stream.read(3) == b"\xEF\xBB\xBF":
                     warn("File contains BOM but JSON files should not", f, 0)
                 else:
@@ -172,6 +176,7 @@ class _CollectJson(Generic[APath]):
                 pos = 0
                 while True:
                     block = bin_stream.read(4096)
+                    assert isinstance(block, bytes)
                     pos += len(block)
                     if not block:
                         warn("JSON files appears to be empty", f, 0)
@@ -205,7 +210,8 @@ class _CollectLua(Generic[APath]):
 
         for f in path.rglob("*.lua"):
             name = str(f.relative_to(path)).replace("\\", "/")
-            with f.open("rb") as bin_stream:
+            bin_read = "r" if PY < (3, 9) else "rb"
+            with f.open(mode=bin_read) as bin_stream:
                 if bin_stream.read(3) == b"\xEF\xBB\xBF":
                     warn("File contains BOM but Lua files should not", f, 0, 0)
 
