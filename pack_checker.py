@@ -1,12 +1,9 @@
 #!/usr/bin/python
 
 import argparse
-import io
 import json
 import os.path
-import re
 import warnings
-import zipfile
 
 try:
     import certifi
@@ -21,29 +18,48 @@ except ImportError:
     pass
 
 from collections import namedtuple
+from pathlib import Path
+from typing import Any, cast, Callable, Dict, Generator, Generic, List, Optional, TextIO, Tuple, TypeVar, Union
+from urllib.parse import urlparse
+from urllib.request import urlopen
+
+from jsonschema import validate
+from jsonschema.exceptions import ValidationError
 from referencing import Registry, Resource
 from referencing.exceptions import NoSuchResource, Unresolvable
 from referencing.jsonschema import DRAFT202012
-from jsonschema import validate
-from jsonschema.exceptions import ValidationError
-from pathlib import Path
-from typing import Any, cast, Callable, Dict, Generator, Generic, Iterator, List, Optional, TextIO, TypeVar, Union
-from urllib.parse import urlparse
-from urllib.request import urlopen
+
+from jsonc import parse as parse_jsonc, ParserError as JsonParserError
+from ziputil import ZipPath
 
 
 __version_info__ = (1, 2, 0)
 __version__ = ".".join(map(str, __version_info__))
 
+APath = TypeVar("APath", Path, ZipPath)
 
 schema_default_src = "https://poptracker.github.io/schema/packs/"
 schema_names = ["items", "layouts", "locations", "manifest", "maps", "settings"]
 
 Item = namedtuple("Item", "name type data")
 
-trailing_regex = re.compile(r"(\".*?\"|\'.*?\')|,(\s*[\]\}])", re.MULTILINE | re.DOTALL)
-comment_regex = re.compile(r"(\".*?\"|\'.*?\')|(/\*.*?\*/|//[^\r\n]*$)", re.MULTILINE | re.DOTALL)
-# comment_regex from jsonc-parser: https://github.com/NickolaiBeloguzov/jsonc-parser
+
+if "CI" not in os.environ or not os.environ["CI"]:
+    def warn(message: str, filename: Any = None, row: Optional[int] = None, col: int = 0) -> None:
+        if filename is not None and row is not None:
+            warnings.warn(f"{filename}[{row}:{col}]: {message}")
+        elif filename is not None:
+            warnings.warn(f"{filename}: {message}")
+        else:
+            warnings.warn(message)
+else:
+    def warn(message: str, filename: Any = None, row: Optional[int] = None, col: int = 0) -> None:
+        if filename is not None and row is not None:
+            print(f"::warning file={filename},line={row},col={col}::{message}")
+        elif filename is not None:
+            print(f"::warning file={filename}::{message}")
+        else:
+            print(f"::warning::{message}")
 
 
 def pack_path(s: str) -> Path:
@@ -65,38 +81,56 @@ def schema_uri(s: str) -> str:
         return f"file://{s}/"
 
 
-class ParserError(Exception):
-    pass
+def find_entry_point(path: Path, warn_for_hidden_files: bool = False) -> ZipPath:
+    assert path.is_file()
+    zippath = ZipPath(path)
+    # find starting point inside the zip and check for hidden files
+    candidates = []
+    hidden = []
+    manifest_found = False
+    for f in zippath.iterdir():
+        name = str(f.relative_to(zippath))
+        if name.startswith("."):
+            hidden.append(name)
+        elif f.is_file() and f.name.lower() == "manifest.json":
+            manifest_found = True
+        if f.is_dir():
+            candidates.append(f)
+    if not manifest_found and len(candidates) == 1:
+        # scan for more hidden files
+        for f in candidates[0].iterdir():
+            if str(f.relative_to(candidates[0])).startswith("."):
+                hidden.append(str(f.relative_to(zippath)))
+        # use directory instead of root
+        zippath = candidates[0]
+    if warn_for_hidden_files and hidden:
+        warn(f"Zip contains hidden files: {hidden}")
+    return zippath
 
 
-def parse_jsonc(s: str, name: Optional[str] = None) -> Any:
-    def __re_sub_comment(match: "re.Match[str]") -> str:
-        if match.group(2) is not None:
-            return ""
-        else:
-            return match.group(1)
-
-    def __re_sub_comma(match: "re.Match[str]") -> str:
-        if match.group(2) is not None:
-            return match.group(2)
-        else:
-            return match.group(1)
-
-    # remove comments
-    s = comment_regex.sub(__re_sub_comment, s)
-    # remove trailing comma as JsoncParser does not do that
-    s = trailing_regex.sub(__re_sub_comma, s)
-    # parse as json
+def read_manifest(path: APath) -> Tuple[Dict[str, Any], List[str]]:
     try:
-        return json.loads(s)
-    except Exception as e:
-        raise ParserError("{} file cannot be parsed (message: {})".format(name or s, str(e)))
+        # py3.8 does not know encoding
+        manifest = parse_jsonc(cast(TextIO, (path / "manifest.json")
+                                    .open(encoding="utf-8-sig")).read())  # type: ignore[call-arg, unused-ignore]
+    except JsonParserError as ex:
+        raise Exception(f"Could not load manifest.json: {ex.__context__}")
+    except FileNotFoundError:
+        raise Exception(f"Could not find manifest.json in {path}")
+    except Exception as ex:
+        raise Exception(f"Could not load manifest.json: {ex.__class__.__name__}: {ex}")
+
+    variants = list(manifest["variants"].keys()) if "variants" in manifest else [""]
+    if "" not in variants:
+        variants.append("")
+
+    return manifest, variants
 
 
 def identify_json(name: str, stream: TextIO, variants: List[str]) -> Optional[Item]:
     try:
         data = parse_jsonc(stream.read(), name)
-    except ParserError as ex:
+    except JsonParserError as ex:
         raise Exception(f"Error parsing {name}: {ex.__context__}")
 
     if name == "settings.json":
@@ -118,46 +152,6 @@ def identify_json(name: str, stream: TextIO, variants: List[str]) -> Optional[It
     return None
 
 
-class ZipPath(zipfile.Path):
-    """Emulates pathlib.Path (and py3.12 zipfile.Path) behavior on py3.8"""
-    @staticmethod
-    def _relative_to(child: str, parent: str) -> str:
-        if not parent.endswith("/"):
-            parent += "/"
-        if not child.startswith(parent):
-            raise Exception(f"{parent} is not a parent of {child}")
-        return child[len(parent):]
-
-    def open(self, *args: Any, **kwargs: Any) -> Any:
-        if "encoding" in kwargs and sys.version_info < (3, 9, 0):
-            kwargs.pop("encoding")
-            return io.TextIOWrapper(super().open(*args, **kwargs), encoding="utf-8-sig")
-        return super().open(*args, **kwargs)
-
-    def __truediv__(self, other: Union[str, "os.PathLike[str]"]) -> "ZipPath":
-        res = super().__truediv__(other)
-        res.__class__ = self.__class__
-        return cast(ZipPath, res)
-
-    def relative_to(self, other: zipfile.Path, *extra: Union[str, "os.PathLike[str]"]) -> str:
-        assert not extra, "extra for ZipPath.relative_to not implemented"
-        return self._relative_to(str(self), str(other))
-
-    def iterdir(self) -> Iterator["ZipPath"]:
-        for f in super().iterdir():
-            root = cast(zipfile.ZipFile, getattr(f, "root"))
-            yield ZipPath(root, self._relative_to(str(f), str(root.filename)))
-
-    def rglob(self, pattern: str) -> Iterator["ZipPath"]:
-        import fnmatch
-        root = cast(zipfile.ZipFile, getattr(self, "root"))
-        for match in fnmatch.filter((zi.filename for zi in root.filelist), pattern):
-            yield ZipPath(root, match)
-
-
-APath = TypeVar("APath", Path, ZipPath)
-
-
 class _CollectJson(Generic[APath]):
     path: APath
 
@@ -166,23 +160,29 @@ class _CollectJson(Generic[APath]):
 
     def __call__(self) -> Generator[Item, None, None]:
         path = self.path
-        try:
-            # py3.8 does not know encoding
-            manifest = parse_jsonc(cast(TextIO, (path / "manifest.json")
-                                        .open(encoding="utf-8-sig")).read())  # type: ignore[call-arg, unused-ignore]
-        except ParserError as ex:
-            raise Exception(f"Could not load manifest.json: {ex.__context__}")
-        except FileNotFoundError:
-            raise Exception(f"Could not find manifest.json in {path}")
-        except Exception as ex:
-            raise Exception(f"Could not load manifest.json: {ex.__class__.__name__}: {ex}")
-
-        variants = list(manifest["variants"].keys()) if "variants" in manifest else [""]
-        if "" not in variants:
-            variants.append("")
+        manifest, variants = read_manifest(path)
 
         for f in path.rglob("*.json*"):
             name = str(f.relative_to(path)).replace("\\", "/")
+            with f.open("rb") as bin_stream:
+                if bin_stream.read(3) == b"\xEF\xBB\xBF":
+                    warn("File contains BOM but JSON files should not", f, 0)
+                else:
+                    bin_stream.seek(0, os.SEEK_SET)
+                pos = 0
+                while True:
+                    block = bin_stream.read(4096)
+                    pos += len(block)
+                    if not block:
+                        warn("JSON files appears to be empty", f, 0)
+                        break
+                    block = block.lstrip()
+                    if block:
+                        if block[0:1] != b'[' and block[0:1] != b'{':
+                            warn("JSON files should only contain white space before '[' or '{' for best compatibility."
+                                 f"Byte at {pos} is {block[0:1]!r}.", f)
+                        break
+
             with f.open(encoding="utf-8-sig") as stream:  # type: ignore[call-arg, unused-ignore]
                 try:
                     item = identify_json(name, cast(TextIO, stream), variants)
@@ -194,33 +194,38 @@ class _CollectJson(Generic[APath]):
                     yield Item(name, "error", ex)
 
 
-def collect_json(path: Path) -> Generator[Item, None, None]:
-    if isinstance(path, Path) and path.is_file():
-        zippath = ZipPath(path)
-        # find starting point inside the zip and check for hidden files
-        candidates = []
-        hidden = []
-        manifest_found = False
-        for f in zippath.iterdir():
-            name = str(f.relative_to(zippath))
-            if name.startswith("."):
-                hidden.append(name)
-            elif f.is_file() and f.name.lower() == "manifest.json":
-                manifest_found = True
-            if f.is_dir():
-                candidates.append(f)
-        if not manifest_found and len(candidates) == 1:
-            # scan for more hidden files
-            for f in candidates[0].iterdir():
-                if str(f.relative_to(candidates[0])).startswith("."):
-                    hidden.append(str(f.relative_to(zippath)))
-            # use directory instead of root
-            zippath = candidates[0]
-        if hidden:
-            warnings.warn(f"Zip contains hidden files: {hidden}")
-        return _CollectJson(zippath)()
+class _CollectLua(Generic[APath]):
+    path: APath
 
+    def __init__(self, path: APath):
+        self.path = path
+
+    def __call__(self) -> Generator[Item, None, None]:
+        path = self.path
+
+        for f in path.rglob("*.lua"):
+            name = str(f.relative_to(path)).replace("\\", "/")
+            with f.open("rb") as bin_stream:
+                if bin_stream.read(3) == b"\xEF\xBB\xBF":
+                    warn("File contains BOM but Lua files should not", f, 0, 0)
+
+            with f.open(encoding="utf-8-sig") as stream:  # type: ignore[call-arg, unused-ignore]
+                try:
+                    yield Item(name, "lua", stream.read())
+                except Exception as ex:
+                    yield Item(name, "error", ex)
+
+
+def collect_json(path: Path) -> Generator[Item, None, None]:
+    if path.is_file():
+        return _CollectJson(find_entry_point(path, warn_for_hidden_files=True))()
     return _CollectJson(path)()
+
+
+def collect_lua(path: Path) -> Generator[Item, None, None]:
+    if path.is_file():
+        return _CollectLua(find_entry_point(path))()
+    return _CollectLua(path)()
 
 
 def check(path: Path, schema_src: str = schema_default_src, strict: bool = False) -> int:
@@ -292,6 +297,16 @@ def check(path: Path, schema_src: str = schema_default_src, strict: bool = False
                 ok = False
     except Exception as ex:
         print(f"Error collecting json: {ex}")
+        return False
+
+    try:
+        for lua_item in collect_lua(path):  # collecting them checks for encoding errors
+            # do we want to bundle a full Lua? py-lua-parser is sadly not good enough
+            if lua_item.type == "error":
+                print(lua_item.data)
+                # ok = False  # TODO: enable this in v2
+    except Exception as ex:
+        print(f"Error collecting Lua: {ex}")
         return False
 
     return count if ok else 0
