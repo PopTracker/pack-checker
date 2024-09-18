@@ -74,6 +74,11 @@ jobs:
           sparse-checkout: |
             schema
             examples
+      - name: Checkout template pack
+        shell: bash
+        run: |
+          cd PopTracker
+          git submodule update --init examples/template_pack
       - name: Check an example (live schema)
         shell: bash
         run: |
@@ -82,17 +87,19 @@ jobs:
         shell: bash
         run: |
           python pack_checker.py --batch --schema PopTracker/schema/packs --strict PopTracker/examples/uat-example
-      - name: Zip an example (Windows)
+      - name: Zip an example and template pack (Windows)
         if: runner.os == 'Windows'
         run: |
           cd PopTracker/examples
+          Compress-Archive -Path template_pack -Destination template_pack.zip  # folder in zip
           Compress-Archive -Path uat-example -Destination uat-example1.zip   # folder in zip
           cd uat-example
           Compress-Archive -Path * -Destination ../uat-example2.zip  # files directly in zip
-      - name: Zip an example (Non-windows)
+      - name: Zip an example and template pack (Non-windows)
         if: runner.os != 'Windows'
         run: |
           cd PopTracker/examples
+          zip -r template_pack.zip template_pack  # folder in zip
           zip -r uat-example1.zip uat-example  # folder in zip
           cd uat-example
           zip -r ../uat-example2.zip *  # files directly in zip
@@ -101,3 +108,8 @@ jobs:
         run: |
           python pack_checker.py --batch --schema PopTracker/schema/packs --strict PopTracker/examples/uat-example1.zip
           python pack_checker.py --batch --schema PopTracker/schema/packs --strict PopTracker/examples/uat-example2.zip
+      - name: Check template pack
+        shell: bash
+        run: |
+          python pack_checker.py --batch --schema PopTracker/schema/packs --strict PopTracker/examples/template_pack
+          python pack_checker.py --batch --schema PopTracker/schema/packs --strict PopTracker/examples/template_pack.zip
