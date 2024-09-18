@@ -205,7 +205,6 @@ class _CollectJson(Generic[APath]):
                 while True:
                     block = bin_stream.read(4096)
                     assert isinstance(block, bytes)
-                    pos += len(block)
                     if not block:
                         warn("JSON files appears to be empty", f, 0)
                         break
@@ -213,8 +212,9 @@ class _CollectJson(Generic[APath]):
                     if block:
                         if block[0:1] != b'[' and block[0:1] != b'{':
                             warn("JSON files should only contain white space before '[' or '{' for best compatibility."
-                                 f"Byte at {pos} is {block[0:1]!r}.", f)
+                                 f" Byte at {pos} is {block[0:1]!r}.", f)
                         break
+                    pos += len(block)
 
             with f.open(encoding="utf-8-sig") as stream:  # type: ignore[call-arg, unused-ignore]
                 try:
