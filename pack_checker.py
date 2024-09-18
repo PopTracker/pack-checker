@@ -378,7 +378,7 @@ def check(path: Path, schema_src: str = schema_default_src, strict: bool = False
                 else:
                     ok = False
             elif json_item.type == "error":
-                print(json_item.data)
+                print(f"{json_item.name}: {json_item.data}")
                 ok = False
             elif json_item.type is None:
                 print(f"Unmatched file: {json_item.name}")
@@ -393,7 +393,7 @@ def check(path: Path, schema_src: str = schema_default_src, strict: bool = False
         for lua_item in collect_lua(path):  # collecting them checks for encoding errors
             # do we want to bundle a full Lua? py-lua-parser is sadly not good enough
             if lua_item.type == "error":
-                print(lua_item.data)
+                warn(str(lua_item.data), lua_item.name)
                 # ok = False  # TODO: enable this in v2
     except Exception as ex:
         print(f"Error collecting Lua: {ex}")
@@ -404,8 +404,7 @@ def check(path: Path, schema_src: str = schema_default_src, strict: bool = False
             # until we verify the image is actually in use, only report compatibility issues for zip
             # since a folder could have source files that then get converted to the format in use
             if image_item.type == "error":
-                print("Error")
-                print(image_item.data)
+                warn(str(image_item.data), image_item.name)
                 # ok = False  # TODO: enable this in v2
             elif is_zipped:
                 if image_item.type not in supported_img_formats:
