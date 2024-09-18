@@ -35,7 +35,7 @@ from jsonc import parse as parse_jsonc, ParserError as JsonParserError
 from ziputil import ZipPath
 
 
-__version_info__ = (1, 3, 0)
+__version_info__ = (1, 3, 1)
 __version__ = ".".join(map(str, __version_info__))
 
 PY = sys.version_info
@@ -208,13 +208,14 @@ class _CollectJson(Generic[APath]):
                     if not block:
                         warn("JSON files appears to be empty", f, 0)
                         break
+                    orig_block_len = len(block)
                     block = block.lstrip()
                     if block:
                         if block[0:1] != b'[' and block[0:1] != b'{':
                             warn("JSON files should only contain white space before '[' or '{' for best compatibility."
-                                 f" Byte at {pos} is {block[0:1]!r}.", f)
+                                 f" Byte at {pos + orig_block_len - len(block)} is {block[0:1]!r}.", f)
                         break
-                    pos += len(block)
+                    pos += orig_block_len
 
             with f.open(encoding="utf-8-sig") as stream:  # type: ignore[call-arg, unused-ignore]
                 try:
