@@ -30,6 +30,7 @@ from referencing import Registry, Resource
 from referencing.exceptions import NoSuchResource, Unresolvable
 from referencing.jsonschema import DRAFT202012
 
+from imgutil import Format as ImgFormat, formats as img_formats, supported_formats as supported_img_formats
 from jsonc import parse as parse_jsonc, ParserError as JsonParserError
 from ziputil import ZipPath
 
@@ -249,6 +250,54 @@ class _CollectLua(Generic[APath]):
                     yield Item(name, "error", ex)
 
 
+class _CollectImages(Generic[APath]):
+    path: APath
+
+    def __init__(self, path: APath):
+        self.path = path
+
+    def __call__(self) -> Generator[Item, None, None]:
+        path = self.path
+        patterns = sorted(set(ext for fmt in img_formats for ext in fmt.extensions))
+        max_magic_len = max(len(fmt.magic_number) for fmt in img_formats)
+
+        all_images = (
+            f
+            for pattern in patterns
+            for f in path.rglob(pattern, case_sensitive=False)  # type: ignore[call-arg,unused-ignore]
+        )
+        for f in all_images:
+            name = str(f.relative_to(path)).replace("\\", "/")
+            ext_format: Optional[ImgFormat] = None
+            data_format: Optional[ImgFormat] = None
+            try:
+                bin_read = "r" if PY < (3, 9) and isinstance(path, ZipPath) else "rb"
+                with f.open(mode=bin_read) as bin_stream:
+                    start = bin_stream.read(max_magic_len)
+                    for fmt in img_formats:
+                        if fmt.match_filename(str(f)):
+                            ext_format = fmt
+                        bin_stream.seek(0, os.SEEK_SET)
+                        if fmt.match_content(bin_stream, start):  # type: ignore[arg-type,unused-ignore]
+                            data_format = fmt
+                        if ext_format is not None and ext_format is data_format:
+                            yield Item(name, ext_format.name, None)
+                            break
+                    else:
+                        if ext_format is None:
+                            raise Exception("Did not match any format. Bad pattern?")
+                        ext = "." + str(f).rsplit(".", 1)[-1]
+                        if data_format is None:
+                            warn(f"Image is named {ext} ({ext_format.name}) "
+                                 "but content does not match", f)
+                        else:
+                            warn(f"Image is named {ext} ({ext_format.name}) "
+                                 f"but content appears to be {data_format.name}", f)
+                        yield Item(name, (data_format or ext_format).name, None)
+            except Exception as ex:
+                yield Item(name, "error", ex)
+
+
 def collect_json(path: Path) -> Generator[Item, None, None]:
     if path.is_file():
         return _CollectJson(find_entry_point(path, warn_for_hidden_files=True))()
@@ -259,6 +308,12 @@ def collect_lua(path: Path) -> Generator[Item, None, None]:
     if path.is_file():
         return _CollectLua(find_entry_point(path))()
     return _CollectLua(path)()
+
+
+def collect_images(path: Path) -> Generator[Item, None, None]:
+    if path.is_file():
+        return _CollectImages(find_entry_point(path))()
+    return _CollectImages(path)()
 
 
 def check(path: Path, schema_src: str = schema_default_src, strict: bool = False) -> int:
@@ -312,6 +367,7 @@ def check(path: Path, schema_src: str = schema_default_src, strict: bool = False
 
     ok = True
     count = 0
+    is_zipped = path.is_file()
 
     try:
         for json_item in collect_json(path):
@@ -340,6 +396,21 @@ def check(path: Path, schema_src: str = schema_default_src, strict: bool = False
                 # ok = False  # TODO: enable this in v2
     except Exception as ex:
         print(f"Error collecting Lua: {ex}")
+        return False
+
+    try:
+        for image_item in collect_images(path):
+            # until we verify the image is actually in use, only report compatibility issues for zip
+            # since a folder could have source files that then get converted to the format in use
+            if image_item.type == "error":
+                print("Error")
+                print(image_item.data)
+                # ok = False  # TODO: enable this in v2
+            elif is_zipped:
+                if image_item.type not in supported_img_formats:
+                    warn(f"Image format {image_item.type} is not supported by all versions", image_item.name)
+    except Exception as ex:
+        print(f"Error collecting images: {ex}")
         return False
 
     return count if ok else 0
