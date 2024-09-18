@@ -58,12 +58,28 @@ if "CI" not in os.environ or not os.environ["CI"]:
             warnings.warn(message)
 else:
     def warn(message: str, filename: Any = None, row: Optional[int] = None, col: int = 0) -> None:
-        if filename is not None and row is not None:
-            print(f"::warning file={filename},line={row},col={col}::{message}")
-        elif filename is not None:
-            print(f"::warning file={filename}::{message}")
+        physical_filename: Optional[str]
+        message_file_marker: str
+        if filename is not None:
+            message_file_marker = f"%0Ain {filename}"
+            if row is not None:
+                message_file_marker += f" at {col}:{row}"
+            if isinstance(filename, (str, Path)) and os.path.exists(filename):
+                physical_filename = str(filename)
+            elif isinstance(filename, ZipPath) and os.path.exists(str(getattr(filename, "root"))):
+                physical_filename = str(getattr(filename, "root"))
+                row = None
+            else:
+                physical_filename = None
         else:
-            print(f"::warning::{message}")
+            physical_filename = None
+            message_file_marker = ""
+        if physical_filename and row is not None:
+            print(f"::warning file={filename},line={row},col={col}::{message}{message_file_marker}")
+        elif physical_filename:
+            print(f"::warning file={filename}::{message}{message_file_marker}")
+        else:
+            print(f"::warning::{message}{message_file_marker}")
 
 
 def pack_path(s: str) -> Path:
@@ -108,7 +124,7 @@ def find_entry_point(path: Path, warn_for_hidden_files: bool = False) -> ZipPath
         # use directory instead of root
         zippath = candidates[0]
     if warn_for_hidden_files and hidden:
-        warn(f"Zip contains hidden files: {hidden}")
+        warn(f"Zip contains hidden files: {hidden}.", path)
     return zippath
 
 
@@ -198,7 +214,7 @@ class _CollectJson(Generic[APath]):
             bin_read = "r" if PY < (3, 9) and isinstance(path, ZipPath) else "rb"
             with f.open(mode=bin_read) as bin_stream:
                 if bin_stream.read(3) == b"\xEF\xBB\xBF":
-                    warn("File contains BOM but JSON files should not", f, 0)
+                    warn("File contains BOM but JSON files should not.", f, 0)
                 else:
                     bin_stream.seek(0, os.SEEK_SET)
                 pos = 0
@@ -206,7 +222,7 @@ class _CollectJson(Generic[APath]):
                     block = bin_stream.read(4096)
                     assert isinstance(block, bytes)
                     if not block:
-                        warn("JSON files appears to be empty", f, 0)
+                        warn("JSON files appears to be empty.", f, 0)
                         break
                     orig_block_len = len(block)
                     block = block.lstrip()
@@ -242,7 +258,7 @@ class _CollectLua(Generic[APath]):
             bin_read = "r" if PY < (3, 9) and isinstance(path, ZipPath) else "rb"
             with f.open(mode=bin_read) as bin_stream:
                 if bin_stream.read(3) == b"\xEF\xBB\xBF":
-                    warn("File contains BOM but Lua files should not", f, 0, 0)
+                    warn("File contains BOM but Lua files should not.", f, 0, 0)
 
             with f.open(encoding="utf-8-sig") as stream:  # type: ignore[call-arg, unused-ignore]
                 try:
