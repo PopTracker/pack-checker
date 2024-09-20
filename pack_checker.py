@@ -19,7 +19,7 @@ except ImportError:
 
 from collections import namedtuple
 from pathlib import Path
-from typing import Any, cast, Callable, Dict, Generator, Generic, List, Optional, TextIO, Tuple, TypeVar, Union
+from typing import Any, cast, Callable, Dict, Generator, Generic, List, Mapping, Optional, TextIO, Tuple, TypeVar, Union
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
@@ -45,6 +45,10 @@ schema_default_src = "https://poptracker.github.io/schema/packs/"
 schema_names = ["items", "layouts", "locations", "manifest", "maps", "settings"]
 
 Item = namedtuple("Item", "name type data")
+
+default_checks: Mapping[str, bool] = {
+    "legacy_compat": True,
+}
 
 
 if "CI" not in os.environ or not os.environ["CI"]:
@@ -103,9 +107,10 @@ def schema_uri(s: str) -> str:
         return f"file://{s}/"
 
 
-def find_entry_point(path: Path, warn_for_hidden_files: bool = False) -> ZipPath:
+def find_entry_point(path: Path, checks: Mapping[str, bool]) -> ZipPath:
     assert path.is_file()
     zippath = ZipPath(path)
+    warn_for_hidden_files = checks.get("hidden_files", False)
     # find starting point inside the zip and check for hidden files
     candidates = []
     hidden = []
@@ -207,9 +212,10 @@ class _CollectJson(Generic[APath]):
     def __init__(self, path: APath):
         self.path = path
 
-    def __call__(self) -> Generator[Item, None, None]:
+    def __call__(self, checks: Mapping[str, bool]) -> Generator[Item, None, None]:
         path = self.path
         manifest, variants = read_manifest(path)
+        warn_for_legacy_incompatibility = checks.get("legacy_compat", True)
 
         for f in path.rglob("*.json*", case_sensitive=False):  # type: ignore[call-arg,unused-ignore]
             name = str(f.relative_to(path)).replace("\\", "/")
@@ -220,7 +226,7 @@ class _CollectJson(Generic[APath]):
                 else:
                     bin_stream.seek(0, os.SEEK_SET)
                 pos = 0
-                while True:
+                while warn_for_legacy_incompatibility:
                     block = bin_stream.read(4096)
                     assert isinstance(block, bytes)
                     if not block:
@@ -252,7 +258,7 @@ class _CollectLua(Generic[APath]):
     def __init__(self, path: APath):
         self.path = path
 
-    def __call__(self) -> Generator[Item, None, None]:
+    def __call__(self, checks: Mapping[str, bool]) -> Generator[Item, None, None]:
         path = self.path
 
         for f in path.rglob("*.lua", case_sensitive=False):  # type: ignore[call-arg,unused-ignore]
@@ -275,7 +281,7 @@ class _CollectImages(Generic[APath]):
     def __init__(self, path: APath):
         self.path = path
 
-    def __call__(self) -> Generator[Item, None, None]:
+    def __call__(self, checks: Mapping[str, bool]) -> Generator[Item, None, None]:
         path = self.path
         patterns = sorted(set(ext for fmt in img_formats for ext in fmt.extensions))
         max_magic_len = max(len(fmt.magic_number) for fmt in img_formats)
@@ -317,25 +323,29 @@ class _CollectImages(Generic[APath]):
                 yield Item(name, "error", ex)
 
 
-def collect_json(path: Path) -> Generator[Item, None, None]:
+def collect_json(path: Path, checks: Mapping[str, bool]) -> Generator[Item, None, None]:
     if path.is_file():
-        return _CollectJson(find_entry_point(path, warn_for_hidden_files=True))()
-    return _CollectJson(path)()
+        return _CollectJson(find_entry_point(path, checks))(checks)
+    return _CollectJson(path)(checks)
 
 
-def collect_lua(path: Path) -> Generator[Item, None, None]:
+def collect_lua(path: Path, checks: Mapping[str, bool]) -> Generator[Item, None, None]:
     if path.is_file():
-        return _CollectLua(find_entry_point(path))()
-    return _CollectLua(path)()
+        return _CollectLua(find_entry_point(path, checks))(checks)
+    return _CollectLua(path)(checks)
 
 
-def collect_images(path: Path) -> Generator[Item, None, None]:
+def collect_images(path: Path, checks: Mapping[str, bool]) -> Generator[Item, None, None]:
     if path.is_file():
-        return _CollectImages(find_entry_point(path))()
-    return _CollectImages(path)()
+        return _CollectImages(find_entry_point(path, checks))(checks)
+    return _CollectImages(path)(checks)
 
 
-def check(path: Path, schema_src: str = schema_default_src, strict: bool = False) -> int:
+def check(path: Path,
+          schema_src: str = schema_default_src,
+          strict: bool = False,
+          checks: Mapping[str, bool] = default_checks
+          ) -> int:
     resource_cache: Dict[str, Union[Exception, Resource[Any]]] = {}
 
     def cached(f: Callable[[str], Resource[Any]]) -> Callable[[str], Resource[Any]]:
@@ -387,12 +397,21 @@ def check(path: Path, schema_src: str = schema_default_src, strict: bool = False
     ok = True
     count = 0
     is_zipped = path.is_file()
+    if is_zipped:
+        checks = {**checks, "hidden_files": True}
+
+    # NOTE: PopTracker min version detection is not fully implemented yet
+    requires_poptracker = False  # set if we detect an unconditional feature that is only available in PopTracker
+    required_min_poptracker_version = (0, 24, 1)  # minimum because of update check
+    manifest: Optional[Item] = None
 
     try:
-        for json_item in collect_json(path):
+        for json_item in collect_json(path, checks):
             if json_item.type in schema_names:
                 if validate_json_item(json_item):
                     count += 1
+                    if json_item.type == "manifest":
+                        manifest = json_item
                 else:
                     ok = False
             elif json_item.type == "error":
@@ -406,9 +425,12 @@ def check(path: Path, schema_src: str = schema_default_src, strict: bool = False
     except Exception as ex:
         print(f"Error collecting json: {ex}")
         return False
+    finally:
+        if is_zipped:
+            checks = {**checks, "hidden_files": False}  # only check the first time zip is inspected
 
     try:
-        for lua_item in collect_lua(path):  # collecting them checks for encoding errors
+        for lua_item in collect_lua(path, checks):  # collecting them checks for encoding errors
             # do we want to bundle a full Lua? py-lua-parser is sadly not good enough
             if lua_item.type == "error":
                 warn(str(lua_item.data), lua_item.name)
@@ -416,9 +438,12 @@ def check(path: Path, schema_src: str = schema_default_src, strict: bool = False
     except Exception as ex:
         print(f"Error collecting Lua: {ex}")
         return False
+    finally:
+        if is_zipped:
+            checks = {**checks, "hidden_files": False}  # only check the first time zip is inspected
 
     try:
-        for image_item in collect_images(path):
+        for image_item in collect_images(path, checks):
             # until we verify the image is actually in use, only report compatibility issues for zip
             # since a folder could have source files that then get converted to the format in use
             if image_item.type == "error":
@@ -430,13 +455,34 @@ def check(path: Path, schema_src: str = schema_default_src, strict: bool = False
     except Exception as ex:
         print(f"Error collecting images: {ex}")
         return False
+    finally:
+        if is_zipped:
+            checks = {**checks, "hidden_files": False}  # only check the first time zip is inspected
+
+    if manifest and (requires_poptracker or not checks.get("legacy_compat", True)):
+        # if either legacy compat is off, or poptracker is required, check min_pop_version is sensible
+        manifest_data: Dict[str, Any] = manifest.data
+        min_poptracker_version: str = manifest_data.get("min_poptracker_version", "")
+        try:
+            if tuple(map(int, min_poptracker_version.split("."))) < (0, 24, 1):
+                required_min_poptracker_version_string = ".".join(map(str, required_min_poptracker_version))
+                warn(f"min_poptracker_version should be at least \"{required_min_poptracker_version_string}\" "
+                     "(this does not detect all features yet).",
+                     manifest.name)
+        except (ValueError, AttributeError):
+            reason = "Pack requires poptracker" if requires_poptracker else "Legacy mode is off"
+            warn(f"{reason}, but min_poptracker_version is not set to a valid version.", manifest.name)
 
     return count if ok else 0
 
 
 def main(args: argparse.Namespace) -> int:
     print(f"PopTracker pack_checker {__version__}")
-    res = check(args.path, args.schema if args.schema else schema_default_src, args.strict)
+    checks: Dict[str, bool] = {
+        **default_checks,
+        "legacy_compat": args.legacy_compat,
+    }
+    res = check(args.path, args.schema if args.schema else schema_default_src, args.strict, checks)
     if res:
         print(f"Validated {res} files")
     if args.interactive:
@@ -455,6 +501,14 @@ if __name__ == "__main__":
     parser.add_argument("path", type=pack_path, metavar="path/to/pack", help="path to the pack to check")
     parser.add_argument("--strict", action="store_true", help="use strict json schema")
     parser.add_argument("--schema", type=schema_uri, help="use custom schema source", metavar="folder/url")
+    legacy_group = parser.add_mutually_exclusive_group()
+    legacy_group.add_argument("--check-legacy-compat", action="store_true", dest="legacy_compat",
+                              help="check for compatibility issues with old PopTracker versions and alternative "
+                                   "implementations (default)",
+                              default=True)
+    legacy_group.add_argument("--no-legacy-compat", action="store_false", dest="legacy_compat",
+                              help="skip checking for compatibility issues with very old PopTracker versions and "
+                                   "alternative implementations")
     interactive_group = parser.add_mutually_exclusive_group()
     interactive_group.add_argument("-i", "--interactive", action="store_true", default=is_windows,
                                    help="keep console open when done (default on Windows)")
