@@ -1,0 +1,4 @@
+[codespell]
+skip = ./.git,./venv*,./.venv*,./dist,./build,./pack_checker.spec
+ignore-words = ./.codespellignore
+
