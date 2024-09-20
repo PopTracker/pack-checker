@@ -4,7 +4,6 @@ import argparse
 import json
 import os.path
 import sys
-import warnings
 
 try:
     import certifi
@@ -49,6 +48,9 @@ Item = namedtuple("Item", "name type data")
 
 
 if "CI" not in os.environ or not os.environ["CI"]:
+    import warnings
+
+
     def warn(message: str, filename: Any = None, row: Optional[int] = None, col: int = 0) -> None:
         if filename is not None and row is not None:
             warnings.warn(f"{filename}[{row}:{col}]: {message}")
