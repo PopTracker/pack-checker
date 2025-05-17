@@ -5,7 +5,11 @@ Tool to check PopTracker packs.
 
 ## Features
 
-Currently only json schema is validated.
+* Validates json schema
+* Warns for some json/jsonc and Lua compatibility issues
+* Warns for some hidden/dead files (only for zipped packs)
+* Warns for unsupported images and misleading file extensions
+* Warns for wrong/missing `min_poptracker_version` if a min is detected
 
 
 ## Usage
