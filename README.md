@@ -12,6 +12,12 @@ Tool to check PopTracker packs.
 * Warns for wrong/missing `min_poptracker_version` if a min is detected
 
 
+## Installation
+
+`pack_checker.py` can be run from source, it can be run as frozen `pack_checker.exe` from GitHub releases,
+or it can be installed as `pack-checker` script into a venv from PyPI with `pip install pack_checker`.
+
+
 ## Usage
 
 ```
