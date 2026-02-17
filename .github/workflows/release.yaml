@@ -20,7 +20,7 @@ jobs:
           - os: windows-latest
             py: "3.13"
             name: "win64"
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             py: "3.13"
             name: "ubuntu-amd64"
           - os: macos-latest
