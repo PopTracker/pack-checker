@@ -14,9 +14,10 @@ jobs:
           - windows-latest  # WindowsPath
           - ubuntu-latest  # PosixPath
         py:
-          - "3.8"  # oldest supported
-          - "3.12"  # newest supported
-          - "3.13-dev"  # next
+          - "3.8"  # oldest working
+          - "3.10"  # oldest with upstream support
+          - "3.14"  # newest supported
+          #- "3.15-dev"  # next
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -44,15 +45,15 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            py: "3.8"  # oldest supported
+            py: "3.8"  # oldest working
           - os: ubuntu-latest
             py: "3.9"
           - os: macos-latest
             py: "3.10"
           - os: ubuntu-latest
-            py: "3.12"  # newest supported
-          - os: ubuntu-latest
-            py: "3.13-dev"  # next
+            py: "3.14"  # newest supported
+          #- os: ubuntu-latest
+          #  py: "3.15-dev"  # next
 
     runs-on: ${{ matrix.os }}
     steps:

@@ -13,13 +13,13 @@ jobs:
         os: [windows-latest, ubuntu-20.04, macos-latest]
         include:
           - os: windows-latest
-            py: "3.8"
+            py: "3.13"
             name: "win64"
           - os: ubuntu-20.04
-            py: "3.10"
+            py: "3.13"
             name: "ubuntu-amd64"
           - os: macos-latest
-            py: "3.10"
+            py: "3.13"
             name: "macos"
 
     runs-on: ${{ matrix.os }}
