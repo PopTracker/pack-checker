@@ -3,6 +3,11 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      test_pypi:
+        description: Publish to test pypi (can only be done once per version)
+        type: boolean
 
 jobs:
   release:
@@ -24,7 +29,8 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Set env
+      - name: Set env (tag)
+        if: startsWith(github.ref, 'refs/tags/')  # only create release on tag pushes
         shell: bash
         run: |
           RELEASE_VERSION="${GITHUB_REF#refs/*/v}"
@@ -57,6 +63,7 @@ jobs:
           cd dist
           tar -czvf "../rls/pack-checker_${{ env.RELEASE_NAME }}_${{ matrix.name }}.tar.gz" *
       - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')  # only create release on tag pushes
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844
         with:
           draft: true
@@ -65,3 +72,47 @@ jobs:
             ./rls/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+  publish_pypi:
+    name: Publish to PyPI
+    if: startsWith(github.ref, 'refs/tags/')  # only publish to PyPI on tag pushes
+    needs:
+      - release  # run after we successfully created the release since this can't be undone
+    runs-on: ubuntu-latest
+
+    environment:
+      name: pypi
+      url: https://pypi.org/p/pack-checker
+
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+
+  publish_testpypi:
+    name: Publish to TestPyPI
+    if: ${{ inputs.test_pypi }}
+    needs:
+      - release  # run after we successfully created the release since this can't be undone
+    runs-on: ubuntu-latest
+
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/pack-checker
+
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
