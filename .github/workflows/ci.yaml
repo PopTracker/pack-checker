@@ -35,7 +35,7 @@ jobs:
       - name: Run mypy
         shell: bash
         run: |
-          python -m mypy --strict pack_checker.py
+          python -m mypy --strict pack_checker
 
   check-example-pack:
     name: Check examples with py${{ matrix.py }} on ${{ matrix.os }}
