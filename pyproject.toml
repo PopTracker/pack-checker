@@ -1,7 +1,7 @@
 [project]
 name = "pack-checker"
 description = "PopTracker pack check tool"
-version = "1.4.0"  # would require build tool to make dynamic
+version = "1.5.0"  # would require build tool to make dynamic
 requires-python = ">= 3.8"
 dependencies = [
   "jsonschema>=4.20.0",
