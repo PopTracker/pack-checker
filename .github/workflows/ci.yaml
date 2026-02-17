@@ -114,3 +114,31 @@ jobs:
         run: |
           python pack_checker.py --batch --schema PopTracker/schema/packs --strict PopTracker/examples/template_pack
           python pack_checker.py --batch --schema PopTracker/schema/packs --strict PopTracker/examples/template_pack.zip
+
+  wheel:
+    name: Build and check wheel with py${{ matrix.py }} on ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            py: "3.14"  # newest supported
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install python ${{ matrix.py }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.py }}
+      - name: Build Wheel
+        run: |
+          pip wheel .
+      - name: Check Version
+        run: |
+          mkdir test-build
+          cd test-build
+          pip install ..
+          # If this fails, either pack_checker/__init__.py was not updated or pyproject.toml wasn't updated.
+          python -c 'from importlib.metadata import version; import pack_checker; assert version("pack_checker") == pack_checker.__version__; print(pack_checker.__version__)'
