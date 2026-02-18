@@ -4,6 +4,7 @@ import argparse
 import json
 import os.path
 import sys
+import typing as t
 
 from collections import namedtuple
 from pathlib import Path
@@ -493,7 +494,7 @@ def run(args: argparse.Namespace) -> int:
     return 0 if res else 1
 
 
-def main() -> None:
+def main(args: Optional[t.Sequence[str]] = None) -> None:
     import platform
     import sys
 
@@ -516,7 +517,7 @@ def main() -> None:
                                    help="keep console open when done (default on Windows)")
     interactive_group.add_argument("-b", "--batch", action="store_false", dest="interactive",
                                    help="exit program when done (default on non-Windows)")
-    sys.exit(run(parser.parse_args()))
+    sys.exit(run(parser.parse_args(args)))
 
 
 if __name__ == "__main__":
