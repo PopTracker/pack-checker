@@ -23,7 +23,7 @@ from .imgutil import supported_formats as supported_img_formats
 from .ziputil import ZipPath
 
 schema_default_src = "https://poptracker.github.io/schema/packs/"
-schema_names = ["items", "layouts", "locations", "manifest", "maps", "settings"]
+schema_names = ["items", "layouts", "locations", "manifest", "maps", "settings", "classes"]
 
 default_checks: Mapping[str, bool] = {
     "legacy_compat": True,

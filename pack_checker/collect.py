@@ -86,6 +86,8 @@ def identify_json(name: str, stream: t.TextIO, variants: t.List[str]) -> t.Optio
             return Item(name, "locations", data)
         elif name.startswith(variant + "layout"):
             return Item(name, "layouts", data)
+        elif name.startswith(variant + "class") or name.startswith(variant + "classes"):
+            return Item(name, "classes", data)
 
     return None
 
