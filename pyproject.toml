@@ -30,7 +30,12 @@ cli = [
 ]
 lint = [
   "types-jsonschema>=4.20.0.20240105",
-  "certifi",
+  "certifi>=2026.2.25",
+  "mypy==1.19.1",
+  "flake8==7.3.0",
+  "bandit==1.9.4",
+  "flake8-bandit==4.1.1",
+  "flake8-pyproject==1.2.4",
 ]
 
 [project.urls]
@@ -39,3 +44,8 @@ Issues = "https://github.com/PopTracker/pack-checker/issues"
 
 [project.scripts]
 pack-checker = "pack_checker.cli:main"
+
+[tool.flake8]
+doctests = true
+max-line-length = 120
+max-complexity = 39  # TODO: get this down to ~15
