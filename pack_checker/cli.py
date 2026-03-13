@@ -366,10 +366,15 @@ def check(path: Path,
 
     @cached  # we cache here since registry is immutable
     def retrieve(uri: str) -> Resource[Any]:
+        if uri.startswith("file:"):
+            raise ValueError("File URI not allowed in schema")
         if "://" in uri or uri.startswith("/"):
-            raise NotImplementedError()
+            raise NotImplementedError()  # only relative retrieve implemented
         full_uri = schema_src + uri
-        r = urlopen(full_uri)
+        # TODO: deny insecure http in v2
+        if not any(full_uri.startswith(schema) for schema in ("file:", "https:", "http:")):
+            raise ValueError("Unsupported URI scheme to retrieve resource")
+        r = urlopen(full_uri)  # noqa: S310 checked above
         content = r.read().decode(r.headers.get_content_charset() or "utf-8")
         return Resource.from_contents(json.loads(content),
                                       default_specification=DRAFT202012)
