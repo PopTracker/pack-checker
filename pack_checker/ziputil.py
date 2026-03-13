@@ -27,7 +27,8 @@ class ZipPath(zipfile.Path):
         return cast(ZipPath, res)
 
     def relative_to(self, other: zipfile.Path, *extra: Union[str, "os.PathLike[str]"]) -> str:
-        assert not extra, "extra for ZipPath.relative_to not implemented"
+        if extra:
+            raise NotImplementedError("extra for ZipPath.relative_to not implemented")
         return self._relative_to(str(self), str(other))
 
     def iterdir(self) -> Iterator["ZipPath"]:
