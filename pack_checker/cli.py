@@ -54,7 +54,6 @@ def try_configure_https() -> None:
 if "CI" not in os.environ or not os.environ["CI"]:
     import warnings
 
-
     def warn(message: str, filename: Any = None, row: Optional[int] = None, col: int = 0) -> None:
         if filename is not None and row is not None:
             warnings.warn(f"{filename}[{row}:{col}]: {message}")
@@ -93,7 +92,7 @@ def pack_path(s: str) -> Path:
         return Path(s)
     if os.path.isfile(s) and s.lower().endswith(".zip"):
         return Path(s)
-    raise argparse.ArgumentTypeError(f"Given argument is not a pack")
+    raise argparse.ArgumentTypeError("Given argument is not a pack")
 
 
 def schema_uri(s: str) -> str:
@@ -108,7 +107,7 @@ def schema_uri(s: str) -> str:
 
 
 def find_entry_point(path: Path, checks: Mapping[str, bool]) -> ZipPath:
-    assert path.is_file()
+    assert path.is_file()  # noqa: S101 debug message, would fail in the line below anyway
     zippath = ZipPath(path)
     warn_for_hidden_files = checks.get("hidden_files", False)
     # find starting point inside the zip and check for hidden files
@@ -182,7 +181,6 @@ def identify_json(name: str, stream: TextIO, variants: List[str]) -> Optional[It
 if PY < (3, 12):
     from fnmatch import fnmatch, fnmatchcase
 
-
     def _rglob_case(path: Path, pattern: str, case_sensitive: Optional[bool] = None, *args: Any, **kwargs: Any
                     ) -> Generator[Path, None, None]:
         if case_sensitive is None:
@@ -200,7 +198,6 @@ if PY < (3, 12):
             for candidate in candidates:
                 if fnmatch(str(candidate).lower(), pattern):
                     yield candidate
-
 
     _original_rglob = Path.rglob
     Path.rglob = _rglob_case  # type: ignore[method-assign,assignment]
@@ -228,7 +225,7 @@ class _CollectJson(Generic[APath]):
                 pos = 0
                 while warn_for_legacy_incompatibility:
                     block = bin_stream.read(4096)
-                    assert isinstance(block, bytes)
+                    assert isinstance(block, bytes)  # noqa: S101 for type checker
                     if not block:
                         warn("JSON files appears to be empty.", f, 0)
                         break
