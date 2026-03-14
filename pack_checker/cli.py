@@ -22,7 +22,6 @@ from .datachecks import check_refs, DataCheckError
 from .imgutil import supported_formats as supported_img_formats
 from .ziputil import ZipPath
 
-
 schema_default_src = "https://poptracker.github.io/schema/packs/"
 schema_names = ["items", "layouts", "locations", "manifest", "maps", "settings"]
 
@@ -40,8 +39,9 @@ def try_configure_https() -> None:
         import certifi  # optional dependency
         import ssl
         import urllib.request
+
         context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=certifi.where())
-        context.set_alpn_protocols(['http/1.1'])
+        context.set_alpn_protocols(["http/1.1"])
         https_handler = urllib.request.HTTPSHandler(context=context)
         opener = urllib.request.build_opener(https_handler)
         urllib.request.install_opener(opener)
@@ -59,7 +59,9 @@ if "CI" not in os.environ or not os.environ["CI"]:
             warnings.warn(f"{filename}: {message}")
         else:
             warnings.warn(message)
+
 else:
+
     def warn(message: str, filename: Any = None, row: Optional[int] = None, col: int = 0) -> None:
         physical_filename: Optional[str]
         message_file_marker: str
@@ -98,17 +100,15 @@ def schema_uri(s: str) -> str:
     if len(uri.scheme) > 1:  # > 1 to ignore windows drive letters
         return s if s.endswith("/") else (s + "/")
     else:
-        s = os.path.abspath(s).replace('\\', '/')
-        if uri.scheme or len(s) > 1 and s[1] == ':':  # path starts with a drive letter
+        s = os.path.abspath(s).replace("\\", "/")
+        if uri.scheme or len(s) > 1 and s[1] == ":":  # path starts with a drive letter
             s = "/" + s  # convert to absolute path
         return f"file://{s}/"
 
 
-def check(path: Path,
-          schema_src: str = schema_default_src,
-          strict: bool = False,
-          checks: Mapping[str, bool] = default_checks
-          ) -> int:
+def check(
+    path: Path, schema_src: str = schema_default_src, strict: bool = False, checks: Mapping[str, bool] = default_checks
+) -> int:
     resource_cache: Dict[str, Union[Exception, Resource[Any]]] = {}
 
     def cached(f: Callable[[str], Resource[Any]]) -> Callable[[str], Resource[Any]]:
@@ -125,6 +125,7 @@ def check(path: Path,
             except Exception as ex:
                 resource_cache[uri] = NoSuchResource(ref=uri)  # type: ignore[call-arg]  # passing ref as per docs
                 raise NoSuchResource(ref=uri) from ex  # type: ignore[call-arg]
+
         return wrap
 
     @cached  # we cache here since registry is immutable
@@ -139,8 +140,7 @@ def check(path: Path,
             raise ValueError("Unsupported URI scheme to retrieve resource")
         r = urlopen(full_uri)  # noqa: S310 checked above
         content = r.read().decode(r.headers.get_content_charset() or "utf-8")
-        return Resource.from_contents(json.loads(content),
-                                      default_specification=DRAFT202012)
+        return Resource.from_contents(json.loads(content), default_specification=DRAFT202012)
 
     registry: Registry[Any] = Registry(retrieve=retrieve)  # type: ignore[call-arg]  # passing retrieve as per docs
 
@@ -238,9 +238,11 @@ def check(path: Path,
         try:
             if tuple(map(int, min_poptracker_version.split("."))) < (0, 24, 1):
                 required_min_poptracker_version_string = ".".join(map(str, required_min_poptracker_version))
-                warn(f"min_poptracker_version should be at least \"{required_min_poptracker_version_string}\" "
-                     "(this does not detect all features yet).",
-                     manifest.name)
+                warn(
+                    f'min_poptracker_version should be at least "{required_min_poptracker_version_string}" '
+                    "(this does not detect all features yet).",
+                    manifest.name,
+                )
         except (ValueError, AttributeError):
             reason = "Pack requires poptracker" if requires_poptracker else "Legacy mode is off"
             warn(f"{reason}, but min_poptracker_version is not set to a valid version.", manifest.name)
@@ -276,18 +278,34 @@ def main(args: Optional[t.Sequence[str]] = None) -> None:
     parser.add_argument("--strict", action="store_true", help="use strict json schema")
     parser.add_argument("--schema", type=schema_uri, help="use custom schema source", metavar="folder/url")
     legacy_group = parser.add_mutually_exclusive_group()
-    legacy_group.add_argument("--check-legacy-compat", action="store_true", dest="legacy_compat",
-                              help="check for compatibility issues with old PopTracker versions and alternative "
-                                   "implementations (default)",
-                              default=True)
-    legacy_group.add_argument("--no-legacy-compat", action="store_false", dest="legacy_compat",
-                              help="skip checking for compatibility issues with very old PopTracker versions and "
-                                   "alternative implementations")
+    legacy_group.add_argument(
+        "--check-legacy-compat",
+        action="store_true",
+        dest="legacy_compat",
+        help="check for compatibility issues with old PopTracker versions and alternative implementations (default)",
+        default=True,
+    )
+    legacy_group.add_argument(
+        "--no-legacy-compat",
+        action="store_false",
+        dest="legacy_compat",
+        help="skip checking for compatibility issues with very old PopTracker versions and alternative implementations",
+    )
     interactive_group = parser.add_mutually_exclusive_group()
-    interactive_group.add_argument("-i", "--interactive", action="store_true", default=is_windows,
-                                   help="keep console open when done (default on Windows)")
-    interactive_group.add_argument("-b", "--batch", action="store_false", dest="interactive",
-                                   help="exit program when done (default on non-Windows)")
+    interactive_group.add_argument(
+        "-i",
+        "--interactive",
+        action="store_true",
+        default=is_windows,
+        help="keep console open when done (default on Windows)",
+    )
+    interactive_group.add_argument(
+        "-b",
+        "--batch",
+        action="store_false",
+        dest="interactive",
+        help="exit program when done (default on non-Windows)",
+    )
     sys.exit(run(parser.parse_args(args)))
 
 

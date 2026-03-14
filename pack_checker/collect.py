@@ -232,7 +232,7 @@ class _CollectImages(t.Generic[APath]):
                             raise Exception("Did not match any format. Bad pattern?")
                         ext = "." + str(f).rsplit(".", 1)[-1]
                         if data_format is None:
-                            warn(f"Image is named {ext} ({ext_format.name}) " "but content does not match", f)
+                            warn(f"Image is named {ext} ({ext_format.name}) but content does not match", f)
                         else:
                             warn(
                                 f"Image is named {ext} ({ext_format.name}) "
