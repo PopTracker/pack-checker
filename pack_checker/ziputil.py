@@ -7,13 +7,14 @@ from typing import Any, Generator, Iterator, Optional, Union, cast
 
 class ZipPath(zipfile.Path):
     """Emulates pathlib.Path (and py3.12 zipfile.Path) behavior on py3.8"""
+
     @staticmethod
     def _relative_to(child: str, parent: str) -> str:
         if not parent.endswith("/"):
             parent += "/"
         if not child.startswith(parent):
             raise Exception(f"{parent} is not a parent of {child}")
-        return child[len(parent):]
+        return child[len(parent) :]
 
     def open(self, *args: Any, **kwargs: Any) -> Any:
         if "encoding" in kwargs and sys.version_info < (3, 9, 0):
@@ -38,6 +39,7 @@ class ZipPath(zipfile.Path):
 
     def rglob(self, pattern: str, case_sensitive: Optional[bool] = None) -> Generator["ZipPath", None, None]:
         import fnmatch
+
         root = cast(zipfile.ZipFile, getattr(self, "root"))
         if case_sensitive:
             for zi in root.filelist:
