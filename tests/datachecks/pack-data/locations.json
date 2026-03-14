@@ -1,0 +1,15 @@
+[
+  {
+    "name": "example-location",
+    "sections": [
+      {
+        "name": "example-section"
+      }
+    ],
+    "children": [
+      {
+        "name": "inner-location"
+      }
+    ]
+  }
+]
