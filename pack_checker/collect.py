@@ -66,6 +66,8 @@ def read_manifest(path: APath) -> t.Tuple[t.Dict[str, t.Any], t.List[str]]:
 
 
 def identify_json(name: str, stream: t.TextIO, variants: t.List[str]) -> t.Optional[Item]:
+    if not variants:
+        raise ValueError("default variant missing from variants")
     try:
         data = parse_jsonc(stream.read(), name)
     except JsonParserError as ex:
