@@ -1,2 +1,3 @@
+# requirements to run pack_checker.py - this should likely be identical to what is in pyproject.toml
 jsonschema>=4.20.0
 referencing
