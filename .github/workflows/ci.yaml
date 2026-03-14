@@ -40,6 +40,10 @@ jobs:
         shell: bash
         run: |
           python -m flake8 pack_checker pack_checker.py tests
+      - name: Check formatting
+        shell: bash
+        run: |
+          python -m black --check --diff pack_checker pack_checker.py tests
 
   unittest:
     name: Test with ${{ matrix.py }} on ${{ matrix.os }}

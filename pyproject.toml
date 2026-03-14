@@ -36,6 +36,7 @@ lint = [
   "bandit==1.9.4",
   "flake8-bandit==4.1.1",
   "flake8-pyproject==1.2.4",
+  "black==26.3.1",
 ]
 
 [project.urls]
@@ -45,7 +46,14 @@ Issues = "https://github.com/PopTracker/pack-checker/issues"
 [project.scripts]
 pack-checker = "pack_checker.cli:main"
 
+[tool.black]
+line-length = 120
+
 [tool.flake8]
 doctests = true
 max-line-length = 120
 max-complexity = 41  # TODO: get this down to ~15
+extend-ignore = "E2,E3"  # may be incompatible to black, but also we use black anyway
+
+[tool.ruff]
+line-length = 120
