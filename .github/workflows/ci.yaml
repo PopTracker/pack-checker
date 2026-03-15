@@ -10,14 +10,13 @@ jobs:
 
     strategy:
       matrix:
-        os:
-          - windows-latest  # WindowsPath
-          - ubuntu-latest  # PosixPath
-        py:
-          #- "3.8"  # oldest we support, fails to install requirements now
-          - "3.10"  # oldest with upstream support
-          - "3.14"  # newest supported
-          #- "3.15-dev"  # next
+        include:
+          - os: ubuntu-latest
+            py: "3.10"  # oldest supported for dev
+          - os: ubuntu-latest
+            py: "3.14"  # newest supported, PosixPath
+          - os: windows-latest
+            py: "3.14"  # newest supported, WindowsPath
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -55,6 +54,8 @@ jobs:
             py: "3.8"  # oldest working
           - os: windows-latest
             py: "3.14"  # newest supported
+          #- os: ubuntu-latest
+          #  py: "3.15-dev"  # next
 
     runs-on: ${{ matrix.os }}
     steps:
