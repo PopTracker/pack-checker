@@ -61,13 +61,18 @@ jobs:
         shell: bash
         run: |
           cd dist
-          7z a -mx=9 "../rls/pack-checker_${{ env.RELEASE_NAME }}_${{ matrix.name }}.zip" *
+          7z a -mx=9 "../rls/pack-checker_${{ env.RELEASE_NAME }}_${{ matrix.name }}.zip" -- *
       - name: TAR GZ
         if: ${{ runner.os != 'Windows' }}
         shell: bash
         run: |
           cd dist
-          tar -czvf "../rls/pack-checker_${{ env.RELEASE_NAME }}_${{ matrix.name }}.tar.gz" *
+          tar -czvf "../rls/pack-checker_${{ env.RELEASE_NAME }}_${{ matrix.name }}.tar.gz" -- *
+      - name: Store Build
+        uses: actions/upload-artifact@v7
+        with:
+          path: "rls/*"
+          archive: false
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')  # only create release on tag pushes
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844
