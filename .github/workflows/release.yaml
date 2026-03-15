@@ -192,10 +192,14 @@ jobs:
 
   publish_testpypi:
     name: Publish to TestPyPI
-    if: ${{ inputs.test_pypi }}
     needs:
       - build
       - release  # run after we successfully created the release since this can't be undone
+      - build-exe  # release may be skipped, so wait for successful upload artifact
+    if: |
+      always()
+      && inputs.test_pypi
+      && !contains(needs.*.result, 'failure')
     runs-on: ubuntu-latest
 
     environment:
