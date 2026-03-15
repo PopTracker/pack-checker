@@ -15,19 +15,17 @@ on:
         description: Publish to test pypi (can only be done once per version)
         type: boolean
 
+permissions:
+  contents: read
+
 jobs:
   ci:  # make sure CI passes before releasing
     if: startsWith(github.ref, 'refs/tags/')  # only create release on tag pushes
     uses: ./.github/workflows/ci.yaml
 
 
-  release:
-    name: Release for ${{ matrix.os }}
-    needs:
-      - ci  # NOTE: publish waits for release, so we only need to wait for ci here
-    if: |
-      always()
-      && !contains(needs.*.result, 'failure')
+  build-exe:
+    name: Build EXE for ${{ matrix.os }}
 
     strategy:
       matrix:
@@ -46,12 +44,17 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Set env (tag)
-        if: startsWith(github.ref, 'refs/tags/')  # only create release on tag pushes
+        if: startsWith(github.ref, 'refs/tags/')  # version in filename for releases
         shell: bash
         run: |
           RELEASE_VERSION="${GITHUB_REF#refs/*/v}"
           echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_ENV
           echo "RELEASE_NAME=${RELEASE_VERSION//./}" >> $GITHUB_ENV
+      - name: Set env (dev)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}  # "dev" in filename for non-releases
+        shell: bash
+        run: |
+          echo "RELEASE_NAME=dev" >> $GITHUB_ENV
       - name: Checkout
         uses: actions/checkout@v6
       - name: Install python ${{ matrix.py }}
@@ -84,16 +87,6 @@ jobs:
           path: "rls/*"
           archive: false
           retention-days: 1
-      - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/')  # only create release on tag pushes
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844
-        with:
-          draft: true
-          name: pack-checker v${{ env.RELEASE_VERSION }}
-          files: |
-            ./rls/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Checkout PopTracker examples
         uses: actions/checkout@v6
         with:
@@ -107,6 +100,34 @@ jobs:
           cd dist
           ./pack_checker* --help
           ./pack_checker* -b ../PopTracker/examples/luminosity-test
+
+  release:
+    name: Create Release
+    if: startsWith(github.ref, 'refs/tags/')  # only create release on tag pushes
+    needs:
+      - ci  # NOTE: publish waits for release, so we only need to wait for ci here
+      - build-exe
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write  # IMPORTANT: required for create release
+
+    steps:
+      - name: Download all the EXEs
+        uses: actions/download-artifact@v8
+        with:
+          pattern: "pack-checker_*"
+          path: rls/
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')  # only create release on tag pushes
+        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844
+        with:
+          draft: true
+          name: pack-checker v${{ env.RELEASE_VERSION }}
+          files: |
+            ./rls/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 
   build:
