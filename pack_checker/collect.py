@@ -66,6 +66,8 @@ def read_manifest(path: APath) -> t.Tuple[t.Dict[str, t.Any], t.List[str]]:
 
 
 def identify_json(name: str, stream: t.TextIO, variants: t.List[str]) -> t.Optional[Item]:
+    if not variants:
+        raise ValueError("default variant missing from variants")
     try:
         data = parse_jsonc(stream.read(), name)
     except JsonParserError as ex:
@@ -86,6 +88,8 @@ def identify_json(name: str, stream: t.TextIO, variants: t.List[str]) -> t.Optio
             return Item(name, "locations", data)
         elif name.startswith(variant + "layout"):
             return Item(name, "layouts", data)
+        elif name.startswith(variant + "class") or name.startswith(variant + "classes"):
+            return Item(name, "classes", data)
 
     return None
 
