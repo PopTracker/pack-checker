@@ -10,8 +10,14 @@ on:
         type: boolean
 
 jobs:
+  ci:  # make sure CI passes before releasing
+    uses: ./.github/workflows/ci.yaml
+
+
   release:
     name: Release for ${{ matrix.os }}
+    needs:
+      - ci  # NOTE: publish waits for release, so we only need to wait for ci here
 
     strategy:
       matrix:
