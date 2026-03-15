@@ -106,7 +106,7 @@ jobs:
         run: |
           cd dist
           ./pack_checker* --help
-          ./pack_checker* ../PopTracker/examples/luminosity-test
+          ./pack_checker* -b ../PopTracker/examples/luminosity-test
 
 
   build:
