@@ -53,6 +53,8 @@ jobs:
         include:
           - os: ubuntu-latest
             py: "3.8"  # oldest working
+          - os: ubuntu-latest
+            py: "3.9"
           - os: windows-latest
             py: "3.14"  # newest supported
           #- os: ubuntu-latest
