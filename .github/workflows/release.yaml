@@ -94,6 +94,19 @@ jobs:
             ./rls/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout PopTracker examples
+        uses: actions/checkout@v6
+        with:
+          repository: black-sliver/PopTracker
+          path: PopTracker
+          sparse-checkout: |
+            examples
+      - name: Test EXE
+        shell: bash
+        run: |
+          cd dist
+          ./pack_checker* --help
+          ./pack_checker* ../PopTracker/examples/luminosity-test
 
 
   build:
