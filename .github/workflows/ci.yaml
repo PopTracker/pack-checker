@@ -22,7 +22,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install python ${{ matrix.py }}
         uses: actions/setup-python@v6
         with:
@@ -59,7 +59,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install python ${{ matrix.py }}
         uses: actions/setup-python@v6
         with:
@@ -93,7 +93,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install python ${{ matrix.py }}
         uses: actions/setup-python@v6
         with:
@@ -103,7 +103,7 @@ jobs:
         run: |
           python -m pip install -U pip -r requirements.txt
       - name: Checkout PopTracker files
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: black-sliver/PopTracker
           path: PopTracker
@@ -162,7 +162,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install python ${{ matrix.py }}
         uses: actions/setup-python@v6
         with:
