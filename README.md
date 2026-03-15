@@ -10,7 +10,7 @@ Tool to check PopTracker packs.
 * Warns for some hidden/dead files (only for zipped packs)
 * Warns for unsupported images and misleading file extensions
 * Warns for wrong/missing `min_poptracker_version` if a min is detected
-
+* Errors for some dead references: ref or parent pointing to a missing object
 
 ## Installation
 
