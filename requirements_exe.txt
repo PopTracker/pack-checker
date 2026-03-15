@@ -1,0 +1,3 @@
+# specific requirements we use during CI to create an EXE
+pyinstaller==6.19.0
+certifi==2026.2.25
