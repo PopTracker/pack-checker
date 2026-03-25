@@ -15,8 +15,7 @@ on:
         description: Publish to test pypi (can only be done once per version)
         type: boolean
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   ci:  # make sure CI passes before releasing
