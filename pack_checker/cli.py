@@ -6,6 +6,7 @@ import os.path
 import typing as t
 import warnings
 
+from itertools import chain
 from pathlib import Path
 from typing import Any, Callable, Dict, Mapping, Optional, Union
 from urllib.parse import urlparse
@@ -28,6 +29,13 @@ warn = warn_pack  # re-export for back compat. Remove at 2.0
 
 schema_default_src = "https://poptracker.github.io/schema/packs/"
 schema_names = ["items", "layouts", "locations", "manifest", "maps", "settings", "classes"]
+external_schema = {
+    ".luarc": {
+        "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+        "https://raw.githubusercontent.com/sumneko/vscode-lua/master/setting/schema.json",
+    }
+}
+allowed_external_schema = set(chain(*external_schema.values()))
 
 default_checks: Mapping[str, bool] = {
     "legacy_compat": True,
@@ -99,8 +107,11 @@ def check(
         if uri.startswith("file:"):
             raise ValueError("File URI not allowed in schema")
         if "://" in uri or uri.startswith("/"):
-            raise NotImplementedError()  # only relative retrieve implemented
-        full_uri = schema_src + uri
+            if uri not in allowed_external_schema:
+                raise NotImplementedError()  # only relative retrieve and allow-list implemented
+            full_uri = uri
+        else:
+            full_uri = schema_src + uri
         # TODO: deny insecure http in v2
         if not any(full_uri.startswith(schema) for schema in ("file:", "https:", "http:")):
             raise ValueError("Unsupported URI scheme to retrieve resource")
@@ -112,20 +123,33 @@ def check(
 
     def validate_json_item(item: Item) -> bool:
         try:
-            validate(
-                instance=item.data,
-                schema={"$ref": f"strict/{item.type}.json" if strict else f"{item.type}.json"},
-                registry=registry,
-            )
-            for data_check in data_checks.get(item.type, []):
-                data_check(item.data, path)
+            if item.type in external_schema:
+                schema_ref = item.data.get("$schema", None)
+                if not schema_ref or schema_ref not in external_schema[item.type]:
+                    raise ValidationError("Unexpected $schema")
+                validate(
+                    instance=item.data,
+                    schema={"$ref": schema_ref},
+                    registry=registry,
+                )
+            else:
+                validate(
+                    instance=item.data,
+                    schema={"$ref": f"strict/{item.type}.json" if strict else f"{item.type}.json"},
+                    registry=registry,
+                )
+                for data_check in data_checks.get(item.type, []):
+                    data_check(item.data, path)
             return True
         except ValidationError as ex:
             print(f"\n{item.name}: {ex}")
         except DataCheckError as ex:
             print(f"\n{item.name}: {ex}")
         except Unresolvable as ex:
-            msg = f"Error loading schema {'strict/' if strict else ''}{item.type}.json: {ex}"
+            if item.type in external_schema:
+                msg = f"Error loading schema {item.data.get('$schema', None)}: {ex}"
+            else:
+                msg = f"Error loading schema {'strict/' if strict else ''}{item.type}.json: {ex}"
             raise Exception(msg) from ex
         except Exception as ex:
             print(f"{ex} while handling {item.name} {type(ex)}")
@@ -145,7 +169,7 @@ def check(
 
     try:
         for json_item in collect_json(path, checks):
-            if json_item.type in schema_names:
+            if json_item.type in schema_names or json_item.type in external_schema:
                 if validate_json_item(json_item):
                     count += 1
                     if json_item.type == "manifest":
