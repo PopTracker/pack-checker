@@ -36,6 +36,7 @@ data_checks: Mapping[str, t.Iterable[t.Callable[[t.Any, Path], None]]] = {
 
 def try_configure_https() -> None:
     try:
+        # noinspection PyPackageRequirements
         import certifi  # optional dependency
         import ssl
         import urllib.request
