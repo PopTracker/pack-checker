@@ -4,6 +4,7 @@ import argparse
 import json
 import os.path
 import typing as t
+import warnings
 
 from pathlib import Path
 from typing import Any, Callable, Dict, Mapping, Optional, Union
@@ -20,7 +21,10 @@ from . import __version__
 from .collect import Item, collect_images, collect_json, collect_lua
 from .datachecks import check_refs, DataCheckError
 from .imgutil import supported_formats as supported_img_formats
-from .ziputil import ZipPath
+from .warnings import warn_pack, cli_warnings_formatter_context
+
+warn = warn_pack  # re-export for back compat. Remove at 2.0
+
 
 schema_default_src = "https://poptracker.github.io/schema/packs/"
 schema_names = ["items", "layouts", "locations", "manifest", "maps", "settings", "classes"]
@@ -47,44 +51,6 @@ def try_configure_https() -> None:
         urllib.request.install_opener(opener)
     except ImportError:
         pass
-
-
-if "CI" not in os.environ or not os.environ["CI"]:
-    import warnings
-
-    def warn(message: str, filename: Any = None, row: Optional[int] = None, col: int = 0) -> None:
-        if filename is not None and row is not None:
-            warnings.warn(f"{filename}[{row}:{col}]: {message}")
-        elif filename is not None:
-            warnings.warn(f"{filename}: {message}")
-        else:
-            warnings.warn(message)
-
-else:
-
-    def warn(message: str, filename: Any = None, row: Optional[int] = None, col: int = 0) -> None:
-        physical_filename: Optional[str]
-        message_file_marker: str
-        if filename is not None:
-            message_file_marker = f"%0Ain {filename}"
-            if row is not None:
-                message_file_marker += f" at {col}:{row}"
-            if isinstance(filename, (str, Path)) and os.path.exists(filename):
-                physical_filename = str(filename)
-            elif isinstance(filename, ZipPath) and os.path.exists(str(getattr(filename, "root"))):
-                physical_filename = str(getattr(filename, "root"))
-                row = None
-            else:
-                physical_filename = None
-        else:
-            physical_filename = None
-            message_file_marker = ""
-        if physical_filename and row is not None:
-            print(f"::warning file={filename},line={row},col={col}::{message}{message_file_marker}")
-        elif physical_filename:
-            print(f"::warning file={filename}::{message}{message_file_marker}")
-        else:
-            print(f"::warning::{message}{message_file_marker}")
 
 
 def pack_path(s: str) -> Path:
@@ -190,10 +156,12 @@ def check(
                 print(f"{json_item.name}: {json_item.data}")
                 ok = False
             elif json_item.type is None:
-                print(f"Unmatched file: {json_item.name}")
+                warn_pack("Unmatched file", filename=json_item.name)
             else:
-                print("No schema {item.type} for {item.name}")
+                warnings.warn(f"No schema {json_item.type} for {json_item.name}", RuntimeWarning)
                 ok = False
+    except ImportError:
+        raise
     except Exception as ex:
         print(f"Error collecting json: {ex}")
         return False
@@ -205,7 +173,7 @@ def check(
         for lua_item in collect_lua(path, checks):  # collecting them checks for encoding errors
             # do we want to bundle a full Lua? py-lua-parser is sadly not good enough
             if lua_item.type == "error":
-                warn(str(lua_item.data), lua_item.name)
+                warn_pack(str(lua_item.data), lua_item.name)
                 # ok = False  # TODO: enable this in v2
     except Exception as ex:
         print(f"Error collecting Lua: {ex}")
@@ -219,11 +187,11 @@ def check(
             # until we verify the image is actually in use, only report compatibility issues for zip
             # since a folder could have source files that then get converted to the format in use
             if image_item.type == "error":
-                warn(str(image_item.data), image_item.name)
+                warn_pack(str(image_item.data), image_item.name)
                 # ok = False  # TODO: enable this in v2
             elif is_zipped:
                 if image_item.type not in supported_img_formats:
-                    warn(f"Image format {image_item.type} is not supported by all versions", image_item.name)
+                    warn_pack(f"Image format {image_item.type} is not supported by all versions", image_item.name)
     except Exception as ex:
         print(f"Error collecting images: {ex}")
         return False
@@ -238,14 +206,14 @@ def check(
         try:
             if tuple(map(int, min_poptracker_version.split("."))) < (0, 24, 1):
                 required_min_poptracker_version_string = ".".join(map(str, required_min_poptracker_version))
-                warn(
+                warn_pack(
                     f'min_poptracker_version should be at least "{required_min_poptracker_version_string}" '
                     "(this does not detect all features yet).",
                     manifest.name,
                 )
         except (ValueError, AttributeError):
             reason = "Pack requires poptracker" if requires_poptracker else "Legacy mode is off"
-            warn(f"{reason}, but min_poptracker_version is not set to a valid version.", manifest.name)
+            warn_pack(f"{reason}, but min_poptracker_version is not set to a valid version.", manifest.name)
 
     return count if ok else 0
 
@@ -256,7 +224,8 @@ def run(args: argparse.Namespace) -> int:
         **default_checks,
         "legacy_compat": args.legacy_compat,
     }
-    res = check(args.path, args.schema if args.schema else schema_default_src, args.strict, checks)
+    with cli_warnings_formatter_context():
+        res = check(args.path, args.schema if args.schema else schema_default_src, args.strict, checks)
     if res:
         print(f"Validated {res} files")
     if args.interactive:

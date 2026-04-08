@@ -16,7 +16,7 @@ Item = namedtuple("Item", "name type data")
 
 
 def find_entry_point(path: Path, checks: t.Mapping[str, bool]) -> ZipPath:
-    from .cli import warn
+    from .warnings import warn_pack
 
     assert path.is_file()  # noqa: S101 debug message, would fail in the line below anyway
     zippath = ZipPath(path)
@@ -41,7 +41,7 @@ def find_entry_point(path: Path, checks: t.Mapping[str, bool]) -> ZipPath:
         # use directory instead of root
         zippath = candidates[0]
     if warn_for_hidden_files and hidden:
-        warn(f"Zip contains hidden files: {hidden}.", path)
+        warn_pack(f"Zip contains hidden files: {hidden}.", path)
     return zippath
 
 
@@ -127,7 +127,7 @@ class _CollectJson(t.Generic[APath]):
         self.path = path
 
     def __call__(self, checks: t.Mapping[str, bool]) -> t.Generator[Item, None, None]:
-        from .cli import warn
+        from .warnings import warn_pack
 
         path = self.path
         manifest, variants = read_manifest(path)
@@ -138,7 +138,7 @@ class _CollectJson(t.Generic[APath]):
             bin_read = "r" if PY < (3, 9) and isinstance(path, ZipPath) else "rb"
             with f.open(mode=bin_read) as bin_stream:
                 if bin_stream.read(3) == b"\xef\xbb\xbf":
-                    warn("File contains BOM but JSON files should not.", f, 0)
+                    warn_pack("File contains BOM but JSON files should not.", f, 0)
                 else:
                     bin_stream.seek(0, os.SEEK_SET)
                 pos = 0
@@ -146,13 +146,13 @@ class _CollectJson(t.Generic[APath]):
                     block = bin_stream.read(4096)
                     assert isinstance(block, bytes)  # noqa: S101 for type checker
                     if not block:
-                        warn("JSON files appears to be empty.", f, 0)
+                        warn_pack("JSON files appears to be empty.", f, 0)
                         break
                     orig_block_len = len(block)
                     block = block.lstrip()
                     if block:
                         if block[0:1] != b"[" and block[0:1] != b"{":
-                            warn(
+                            warn_pack(
                                 "JSON files should only contain white space before '[' or '{' for best compatibility."
                                 f" Byte at {pos + orig_block_len - len(block)} is {block[0:1]!r}.",
                                 f,
@@ -178,7 +178,7 @@ class _CollectLua(t.Generic[APath]):
         self.path = path
 
     def __call__(self, checks: t.Mapping[str, bool]) -> t.Generator[Item, None, None]:
-        from .cli import warn
+        from .warnings import warn_pack
 
         path = self.path
 
@@ -187,7 +187,7 @@ class _CollectLua(t.Generic[APath]):
             bin_read = "r" if PY < (3, 9) and isinstance(path, ZipPath) else "rb"
             with f.open(mode=bin_read) as bin_stream:
                 if bin_stream.read(3) == b"\xef\xbb\xbf":
-                    warn("File contains BOM but Lua files should not.", f, 0, 0)
+                    warn_pack("File contains BOM but Lua files should not.", f, 0, 0)
 
             with f.open(encoding="utf-8-sig") as stream:  # type: ignore[call-arg, unused-ignore]
                 try:
@@ -203,7 +203,7 @@ class _CollectImages(t.Generic[APath]):
         self.path = path
 
     def __call__(self, checks: t.Mapping[str, bool]) -> t.Generator[Item, None, None]:
-        from .cli import warn
+        from .warnings import warn_pack
 
         path = self.path
         patterns = sorted(set(ext for fmt in img_formats for ext in fmt.extensions))
@@ -236,9 +236,9 @@ class _CollectImages(t.Generic[APath]):
                             raise Exception("Did not match any format. Bad pattern?")
                         ext = "." + str(f).rsplit(".", 1)[-1]
                         if data_format is None:
-                            warn(f"Image is named {ext} ({ext_format.name}) but content does not match", f)
+                            warn_pack(f"Image is named {ext} ({ext_format.name}) but content does not match", f)
                         else:
-                            warn(
+                            warn_pack(
                                 f"Image is named {ext} ({ext_format.name}) "
                                 f"but content appears to be {data_format.name}",
                                 f,
