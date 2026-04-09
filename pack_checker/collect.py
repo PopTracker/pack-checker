@@ -148,7 +148,7 @@ class _CollectJson(t.Generic[APath]):
                     block = bin_stream.read(4096)
                     assert isinstance(block, bytes)  # noqa: S101 for type checker
                     if not block:
-                        warn_pack("JSON files appears to be empty.", f, 0)
+                        warn_pack("JSON file appears to be empty.", f, 0)
                         break
                     orig_block_len = len(block)
                     block = block.lstrip()
