@@ -28,7 +28,7 @@ warn = warn_pack  # re-export for back compat. Remove at 2.0
 
 
 schema_default_src = "https://poptracker.github.io/schema/packs/"
-schema_names = ["items", "layouts", "locations", "manifest", "maps", "settings", "classes"]
+schema_names = {"items", "layouts", "locations", "manifest", "maps", "settings", "classes"}
 external_schema = {
     ".luarc": {
         "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
@@ -80,9 +80,20 @@ def schema_uri(s: str) -> str:
         return f"file://{s}/"
 
 
+def _validate_config() -> None:
+    # sanity check lists; doing this during runtime in case they get extended
+    if not schema_names.isdisjoint(external_schema):
+        raise ValueError("schema_names and external_schema overlap")
+    for special_name in ("error",):
+        if special_name in schema_names or special_name in external_schema:
+            raise ValueError(f"'{special_name}' has special meaning and is invalid as schema name")
+
+
 def check(
     path: Path, schema_src: str = schema_default_src, strict: bool = False, checks: Mapping[str, bool] = default_checks
 ) -> int:
+    _validate_config()
+
     resource_cache: Dict[str, Union[Exception, Resource[Any]]] = {}
 
     def cached(f: Callable[[str], Resource[Any]]) -> Callable[[str], Resource[Any]]:
