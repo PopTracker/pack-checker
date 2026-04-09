@@ -14,6 +14,8 @@ APath = t.TypeVar("APath", Path, ZipPath)
 
 Item = namedtuple("Item", "name type data")
 
+json_ignore_prefixes = (".vs/", ".vscode/")
+
 
 def find_entry_point(path: Path, checks: t.Mapping[str, bool]) -> ZipPath:
     from .warnings import warn_pack
@@ -68,6 +70,11 @@ def read_manifest(path: APath) -> t.Tuple[t.Dict[str, t.Any], t.List[str]]:
 def identify_json(name: str, stream: t.TextIO, variants: t.List[str]) -> t.Optional[Item]:
     if not variants:
         raise ValueError("default variant missing from variants")
+
+    for ignore_prefix in json_ignore_prefixes:
+        if name.startswith(ignore_prefix):
+            return Item(name, "ignore", None)
+
     try:
         data = parse_jsonc(stream.read(), name)
     except JsonParserError as ex:
