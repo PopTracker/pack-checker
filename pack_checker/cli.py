@@ -84,7 +84,7 @@ def _validate_config() -> None:
     # sanity check lists; doing this during runtime in case they get extended
     if not schema_names.isdisjoint(external_schema):
         raise ValueError("schema_names and external_schema overlap")
-    for special_name in ("error",):
+    for special_name in ("error", "ignore"):
         if special_name in schema_names or special_name in external_schema:
             raise ValueError(f"'{special_name}' has special meaning and is invalid as schema name")
 
@@ -192,7 +192,7 @@ def check(
                         manifest = json_item
                 else:
                     ok = False
-            elif is_external:
+            elif json_item.type == "ignore" or is_external:
                 pass
             elif json_item.type == "error":
                 print(f"{json_item.name}: {json_item.data}")
