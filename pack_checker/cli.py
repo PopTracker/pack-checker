@@ -90,7 +90,11 @@ def _validate_config() -> None:
 
 
 def check(
-    path: Path, schema_src: str = schema_default_src, strict: bool = False, checks: Mapping[str, bool] = default_checks
+    path: Path,
+    schema_src: str = schema_default_src,
+    strict: bool = False,
+    checks: Mapping[str, bool] = default_checks,
+    validate_external: bool = False,
 ) -> int:
     _validate_config()
 
@@ -180,13 +184,16 @@ def check(
 
     try:
         for json_item in collect_json(path, checks):
-            if json_item.type in schema_names or json_item.type in external_schema:
+            is_external = json_item.type in external_schema
+            if json_item.type in schema_names or (validate_external and is_external):
                 if validate_json_item(json_item):
                     count += 1
                     if json_item.type == "manifest":
                         manifest = json_item
                 else:
                     ok = False
+            elif is_external:
+                pass
             elif json_item.type == "error":
                 print(f"{json_item.name}: {json_item.data}")
                 ok = False
@@ -259,8 +266,11 @@ def run(args: argparse.Namespace) -> int:
         **default_checks,
         "legacy_compat": args.legacy_compat,
     }
+    validate_external: bool = getattr(args, "validate_external", False)  # getattr since run is "public" in 1.x
     with cli_warnings_formatter_context():
-        res = check(args.path, args.schema if args.schema else schema_default_src, args.strict, checks)
+        res = check(
+            args.path, args.schema if args.schema else schema_default_src, args.strict, checks, validate_external
+        )
     if res:
         print(f"Validated {res} files")
     if args.interactive:
@@ -309,6 +319,19 @@ def main(args: Optional[t.Sequence[str]] = None) -> None:
         action="store_false",
         dest="interactive",
         help="exit program when done (default on non-Windows)",
+    )
+    external_group = parser.add_mutually_exclusive_group()
+    external_group.add_argument(
+        "--validate-external",
+        action="store_true",
+        dest="validate_external",
+        help="allow validation of select known external schemas (will become default in 2.x)",
+    )
+    external_group.add_argument(
+        "--no-validate-external",
+        action="store_false",
+        dest="validate_external",
+        help="do not validate known external schema (default)",
     )
     sys.exit(run(parser.parse_args(args)))
 
