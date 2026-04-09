@@ -146,6 +146,8 @@ def check(
 
     def validate_json_item(item: Item) -> bool:
         try:
+            if not isinstance(item.type, str):
+                raise ValueError("Invalid item.type")
             validate(
                 instance=item.data,
                 schema={"$ref": f"strict/{item.type}.json" if strict else f"{item.type}.json"},
