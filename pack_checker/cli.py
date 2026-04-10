@@ -219,8 +219,7 @@ def check(
         print(f"Error collecting json: {ex}")
         return False
     finally:
-        if is_zipped:
-            checks = {**checks, "hidden_files": False}  # only check the first time zip is inspected
+        checks = {**checks, "hidden_files": False}  # only check hidden once
 
     try:
         for lua_item in collect_lua(path, checks):  # collecting them checks for encoding errors
@@ -231,9 +230,6 @@ def check(
     except Exception as ex:
         print(f"Error collecting Lua: {ex}")
         return False
-    finally:
-        if is_zipped:
-            checks = {**checks, "hidden_files": False}  # only check the first time zip is inspected
 
     try:
         for image_item in collect_images(path, checks):
@@ -248,9 +244,6 @@ def check(
     except Exception as ex:
         print(f"Error collecting images: {ex}")
         return False
-    finally:
-        if is_zipped:
-            checks = {**checks, "hidden_files": False}  # only check the first time zip is inspected
 
     if manifest and (requires_poptracker or not checks.get("legacy_compat", True)):
         # if either legacy compat is off, or poptracker is required, check min_pop_version is sensible
