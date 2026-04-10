@@ -138,11 +138,14 @@ class _CollectJson(t.Generic[APath]):
         self.path = path
 
     def __call__(self, checks: t.Mapping[str, bool]) -> t.Generator[Item, None, None]:
+        from .cli import external_schema
         from .warnings import warn_pack
 
         path = self.path
         manifest, variants = read_manifest(path)
         warn_for_legacy_incompatibility = checks.get("legacy_compat", True)
+        warn_for_unused_files = checks.get("unused_files", False)
+        unused_json: t.List[str] = []
 
         for f in path.rglob("*.json*", case_sensitive=False):  # type: ignore[call-arg,unused-ignore]
             name = str(f.relative_to(path)).replace("\\", "/")
@@ -176,10 +179,17 @@ class _CollectJson(t.Generic[APath]):
                     item = identify_json(name, t.cast(t.TextIO, stream), variants)
                     if item:
                         yield item
+                        # TODO: move this to a separate thing and also warn for unused other files, not just JSON
+                        if warn_for_unused_files:
+                            if (item.type == "ignore" or item.type in external_schema) and not name.startswith("."):
+                                unused_json.append(item.name)
                     else:
                         yield Item(name, None, None)
                 except Exception as ex:
                     yield Item(name, "error", ex)
+
+        if unused_json:
+            warn_pack(f"Pack contains unused json: {unused_json}.", path)
 
 
 class _CollectLua(t.Generic[APath]):

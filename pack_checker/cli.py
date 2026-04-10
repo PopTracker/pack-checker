@@ -186,7 +186,7 @@ def check(
     count = 0
     is_zipped = path.is_file()
     if is_zipped:
-        checks = {**checks, "hidden_files": True}
+        checks = {**checks, "hidden_files": True, "unused_files": True}
 
     # NOTE: PopTracker min version detection is not fully implemented yet
     requires_poptracker = False  # set if we detect an unconditional feature that is only available in PopTracker
@@ -219,7 +219,7 @@ def check(
         print(f"Error collecting json: {ex}")
         return False
     finally:
-        checks = {**checks, "hidden_files": False}  # only check hidden once
+        checks = {**checks, "hidden_files": False, "unused_files": False}  # only check hidden/unused once
 
     try:
         for lua_item in collect_lua(path, checks):  # collecting them checks for encoding errors
