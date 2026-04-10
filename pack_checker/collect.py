@@ -84,6 +84,8 @@ def identify_json(name: str, stream: t.TextIO, variants: t.List[str]) -> t.Optio
         return Item(name, "settings", data)
     if name == "manifest.json":
         return Item(name, "manifest", data)
+    if name == "versions.json":
+        return Item(name, "versions", data)  # TODO: warn if this file is present in the ZIP
     if name == ".luarc.json":
         return Item(name, ".luarc", data)
     for variant in variants:
