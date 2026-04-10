@@ -32,3 +32,9 @@ class TestIdentifyJson(TestCase):
     def test_not_identify_luarc_json_subfolder(self) -> None:
         # we don't care about it outside of pack root
         self.assertIsNone(identify_json("var1/.luarc.json", StringIO("{}"), ["var1"]))
+
+    def test_ignore_vs_json(self) -> None:
+        self.assert_is_type("ignore", identify_json(".vs/test.json", StringIO("{}"), [""]))
+
+    def test_ignore_vscode_json(self) -> None:
+        self.assert_is_type("ignore", identify_json(".vscode/test.json", StringIO("{}"), [""]))
