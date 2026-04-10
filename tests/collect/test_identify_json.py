@@ -38,3 +38,10 @@ class TestIdentifyJson(TestCase):
 
     def test_ignore_vscode_json(self) -> None:
         self.assert_is_type("ignore", identify_json(".vscode/test.json", StringIO("{}"), [""]))
+
+    def test_identify_versions_json(self) -> None:
+        self.assert_is_type("versions", identify_json("versions.json", StringIO("{}"), [""]))
+
+    def test_not_identify_versions_json_subfolder(self) -> None:
+        # we don't care about it outside of pack root (for now)
+        self.assertIsNone(identify_json("var1/versions.json", StringIO("{}"), ["var1"]))
