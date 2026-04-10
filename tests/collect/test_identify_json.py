@@ -25,3 +25,10 @@ class TestIdentifyJson(TestCase):
 
     def test_identify_var_classes_file_json(self) -> None:
         self.assert_is_type("classes", identify_json("var1/classes/some.json", StringIO("{}"), ["var1"]))
+
+    def test_identify_luarc_json(self) -> None:
+        self.assert_is_type(".luarc", identify_json(".luarc.json", StringIO("{}"), [""]))
+
+    def test_not_identify_luarc_json_subfolder(self) -> None:
+        # we don't care about it outside of pack root
+        self.assertIsNone(identify_json("var1/.luarc.json", StringIO("{}"), ["var1"]))
