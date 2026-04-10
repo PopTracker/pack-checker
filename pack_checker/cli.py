@@ -33,7 +33,10 @@ external_schema = {
     ".luarc": {
         "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
         "https://raw.githubusercontent.com/sumneko/vscode-lua/master/setting/schema.json",
-    }
+    },
+    "versions": {
+        "https://raw.githubusercontent.com/black-sliver/PopTracker/refs/heads/packlist/schema/versions.schema.json"
+    },
 }
 allowed_external_schema = set(chain(*external_schema.values()))
 
@@ -139,7 +142,14 @@ def check(
     def validate_json_item(item: Item) -> bool:
         try:
             if item.type in external_schema:
-                schema_ref = item.data.get("$schema", None)
+                # check $schema, allow undefined/missing $schema if the expected schema is unambiguous
+                possible_schemas = external_schema[item.type]
+                first_schema = next(iter(possible_schemas))
+                schema_ref = (
+                    first_schema
+                    if not isinstance(item.data, dict) and len(possible_schemas) == 1
+                    else item.data.get("$schema", first_schema if len(external_schema[item.type]) == 1 else None)
+                )
                 if not schema_ref or schema_ref not in external_schema[item.type]:
                     raise ValidationError("Unexpected $schema")
                 validate(
@@ -148,6 +158,7 @@ def check(
                     registry=registry,
                 )
             else:
+                # validate against pack schema
                 validate(
                     instance=item.data,
                     schema={"$ref": f"strict/{item.type}.json" if strict else f"{item.type}.json"},
