@@ -36,6 +36,8 @@ def cli_warnings_formatter_context() -> t.Generator[None, None, None]:
 if "CI" not in os.environ or not os.environ["CI"]:
 
     def warn_pack(message: str, filename: t.Any = None, row: t.Optional[int] = None, col: int = 0) -> None:
+        if filename is not None:
+            filename = str(filename).rstrip("/")
         if filename is not None and row is not None:
             warnings.warn(f"{filename}[{row}:{col}]: {message}", PackWarning, stacklevel=2)
         elif filename is not None:
@@ -49,6 +51,7 @@ else:
         physical_filename: t.Optional[str]
         message_file_marker: str
         if filename is not None:
+            filename = str(filename).rstrip("/")
             message_file_marker = f"%0Ain {filename}"
             if row is not None:
                 message_file_marker += f" at {col}:{row}"
