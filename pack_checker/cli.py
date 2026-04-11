@@ -142,6 +142,8 @@ def check(
 
     def validate_json_item(item: Item) -> bool:
         try:
+            if not isinstance(item.type, str):
+                raise ValueError("Invalid item.type")
             if item.type in external_schema:
                 # check $schema, allow undefined/missing $schema if the expected schema is unambiguous
                 possible_schemas = external_schema[item.type]
