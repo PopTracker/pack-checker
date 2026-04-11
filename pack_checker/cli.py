@@ -4,7 +4,9 @@ import argparse
 import json
 import os.path
 import typing as t
+import warnings
 
+from itertools import chain
 from pathlib import Path
 from typing import Any, Callable, Dict, Mapping, Optional, Union
 from urllib.parse import urlparse
@@ -20,10 +22,23 @@ from . import __version__
 from .collect import Item, collect_images, collect_json, collect_lua
 from .datachecks import check_refs, DataCheckError
 from .imgutil import supported_formats as supported_img_formats
-from .ziputil import ZipPath
+from .warnings import warn_pack, cli_warnings_formatter_context
+
+warn = warn_pack  # re-export for back compat. Remove at 2.0
+
 
 schema_default_src = "https://poptracker.github.io/schema/packs/"
-schema_names = ["items", "layouts", "locations", "manifest", "maps", "settings", "classes"]
+schema_names = {"items", "layouts", "locations", "manifest", "maps", "settings", "classes"}
+external_schema = {
+    ".luarc": {
+        "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+        "https://raw.githubusercontent.com/sumneko/vscode-lua/master/setting/schema.json",
+    },
+    "versions": {
+        "https://raw.githubusercontent.com/black-sliver/PopTracker/refs/heads/packlist/schema/versions.schema.json"
+    },
+}
+allowed_external_schema = set(chain(*external_schema.values()))
 
 default_checks: Mapping[str, bool] = {
     "legacy_compat": True,
@@ -36,6 +51,7 @@ data_checks: Mapping[str, t.Iterable[t.Callable[[t.Any, Path], None]]] = {
 
 def try_configure_https() -> None:
     try:
+        # noinspection PyPackageRequirements
         import certifi  # optional dependency
         import ssl
         import urllib.request
@@ -47,44 +63,6 @@ def try_configure_https() -> None:
         urllib.request.install_opener(opener)
     except ImportError:
         pass
-
-
-if "CI" not in os.environ or not os.environ["CI"]:
-    import warnings
-
-    def warn(message: str, filename: Any = None, row: Optional[int] = None, col: int = 0) -> None:
-        if filename is not None and row is not None:
-            warnings.warn(f"{filename}[{row}:{col}]: {message}")
-        elif filename is not None:
-            warnings.warn(f"{filename}: {message}")
-        else:
-            warnings.warn(message)
-
-else:
-
-    def warn(message: str, filename: Any = None, row: Optional[int] = None, col: int = 0) -> None:
-        physical_filename: Optional[str]
-        message_file_marker: str
-        if filename is not None:
-            message_file_marker = f"%0Ain {filename}"
-            if row is not None:
-                message_file_marker += f" at {col}:{row}"
-            if isinstance(filename, (str, Path)) and os.path.exists(filename):
-                physical_filename = str(filename)
-            elif isinstance(filename, ZipPath) and os.path.exists(str(getattr(filename, "root"))):
-                physical_filename = str(getattr(filename, "root"))
-                row = None
-            else:
-                physical_filename = None
-        else:
-            physical_filename = None
-            message_file_marker = ""
-        if physical_filename and row is not None:
-            print(f"::warning file={filename},line={row},col={col}::{message}{message_file_marker}")
-        elif physical_filename:
-            print(f"::warning file={filename}::{message}{message_file_marker}")
-        else:
-            print(f"::warning::{message}{message_file_marker}")
 
 
 def pack_path(s: str) -> Path:
@@ -106,9 +84,24 @@ def schema_uri(s: str) -> str:
         return f"file://{s}/"
 
 
+def _validate_config() -> None:
+    # sanity check lists; doing this during runtime in case they get extended
+    if not schema_names.isdisjoint(external_schema):
+        raise ValueError("schema_names and external_schema overlap")
+    for special_name in ("error", "ignore"):
+        if special_name in schema_names or special_name in external_schema:
+            raise ValueError(f"'{special_name}' has special meaning and is invalid as schema name")
+
+
 def check(
-    path: Path, schema_src: str = schema_default_src, strict: bool = False, checks: Mapping[str, bool] = default_checks
+    path: Path,
+    schema_src: str = schema_default_src,
+    strict: bool = False,
+    checks: Mapping[str, bool] = default_checks,
+    validate_external: bool = False,
 ) -> int:
+    _validate_config()
+
     resource_cache: Dict[str, Union[Exception, Resource[Any]]] = {}
 
     def cached(f: Callable[[str], Resource[Any]]) -> Callable[[str], Resource[Any]]:
@@ -133,8 +126,11 @@ def check(
         if uri.startswith("file:"):
             raise ValueError("File URI not allowed in schema")
         if "://" in uri or uri.startswith("/"):
-            raise NotImplementedError()  # only relative retrieve implemented
-        full_uri = schema_src + uri
+            if uri not in allowed_external_schema:
+                raise NotImplementedError()  # only relative retrieve and allow-list implemented
+            full_uri = uri
+        else:
+            full_uri = schema_src + uri
         # TODO: deny insecure http in v2
         if not any(full_uri.startswith(schema) for schema in ("file:", "https:", "http:")):
             raise ValueError("Unsupported URI scheme to retrieve resource")
@@ -148,20 +144,41 @@ def check(
         try:
             if not isinstance(item.type, str):
                 raise ValueError("Invalid item.type")
-            validate(
-                instance=item.data,
-                schema={"$ref": f"strict/{item.type}.json" if strict else f"{item.type}.json"},
-                registry=registry,
-            )
-            for data_check in data_checks.get(item.type, []):
-                data_check(item.data, path)
+            if item.type in external_schema:
+                # check $schema, allow undefined/missing $schema if the expected schema is unambiguous
+                possible_schemas = external_schema[item.type]
+                first_schema = next(iter(possible_schemas))
+                schema_ref = (
+                    first_schema
+                    if not isinstance(item.data, dict) and len(possible_schemas) == 1
+                    else item.data.get("$schema", first_schema if len(external_schema[item.type]) == 1 else None)
+                )
+                if not schema_ref or schema_ref not in external_schema[item.type]:
+                    raise ValidationError("Unexpected $schema")
+                validate(
+                    instance=item.data,
+                    schema={"$ref": schema_ref},
+                    registry=registry,
+                )
+            else:
+                # validate against pack schema
+                validate(
+                    instance=item.data,
+                    schema={"$ref": f"strict/{item.type}.json" if strict else f"{item.type}.json"},
+                    registry=registry,
+                )
+                for data_check in data_checks.get(item.type, []):
+                    data_check(item.data, path)
             return True
         except ValidationError as ex:
             print(f"\n{item.name}: {ex}")
         except DataCheckError as ex:
             print(f"\n{item.name}: {ex}")
         except Unresolvable as ex:
-            msg = f"Error loading schema {'strict/' if strict else ''}{item.type}.json: {ex}"
+            if item.type in external_schema:
+                msg = f"Error loading schema {item.data.get('$schema', None)}: {ex}"
+            else:
+                msg = f"Error loading schema {'strict/' if strict else ''}{item.type}.json: {ex}"
             raise Exception(msg) from ex
         except Exception as ex:
             print(f"{ex} while handling {item.name} {type(ex)}")
@@ -172,7 +189,7 @@ def check(
     count = 0
     is_zipped = path.is_file()
     if is_zipped:
-        checks = {**checks, "hidden_files": True}
+        checks = {**checks, "hidden_files": True, "unused_files": True}
 
     # NOTE: PopTracker min version detection is not fully implemented yet
     requires_poptracker = False  # set if we detect an unconditional feature that is only available in PopTracker
@@ -181,57 +198,55 @@ def check(
 
     try:
         for json_item in collect_json(path, checks):
-            if json_item.type in schema_names:
+            is_external = json_item.type in external_schema
+            if json_item.type in schema_names or (validate_external and is_external):
                 if validate_json_item(json_item):
                     count += 1
                     if json_item.type == "manifest":
                         manifest = json_item
                 else:
                     ok = False
+            elif json_item.type == "ignore" or is_external:
+                pass
             elif json_item.type == "error":
                 print(f"{json_item.name}: {json_item.data}")
                 ok = False
             elif json_item.type is None:
-                print(f"Unmatched file: {json_item.name}")
+                warn_pack("Unmatched file", filename=json_item.name)
             else:
-                print("No schema {item.type} for {item.name}")
+                warnings.warn(f"No schema {json_item.type} for {json_item.name}", RuntimeWarning)
                 ok = False
+    except ImportError:
+        raise
     except Exception as ex:
         print(f"Error collecting json: {ex}")
         return False
     finally:
-        if is_zipped:
-            checks = {**checks, "hidden_files": False}  # only check the first time zip is inspected
+        checks = {**checks, "hidden_files": False, "unused_files": False}  # only check hidden/unused once
 
     try:
         for lua_item in collect_lua(path, checks):  # collecting them checks for encoding errors
             # do we want to bundle a full Lua? py-lua-parser is sadly not good enough
             if lua_item.type == "error":
-                warn(str(lua_item.data), lua_item.name)
+                warn_pack(str(lua_item.data), lua_item.name)
                 # ok = False  # TODO: enable this in v2
     except Exception as ex:
         print(f"Error collecting Lua: {ex}")
         return False
-    finally:
-        if is_zipped:
-            checks = {**checks, "hidden_files": False}  # only check the first time zip is inspected
 
     try:
         for image_item in collect_images(path, checks):
             # until we verify the image is actually in use, only report compatibility issues for zip
             # since a folder could have source files that then get converted to the format in use
             if image_item.type == "error":
-                warn(str(image_item.data), image_item.name)
+                warn_pack(str(image_item.data), image_item.name)
                 # ok = False  # TODO: enable this in v2
             elif is_zipped:
                 if image_item.type not in supported_img_formats:
-                    warn(f"Image format {image_item.type} is not supported by all versions", image_item.name)
+                    warn_pack(f"Image format {image_item.type} is not supported by all versions", image_item.name)
     except Exception as ex:
         print(f"Error collecting images: {ex}")
         return False
-    finally:
-        if is_zipped:
-            checks = {**checks, "hidden_files": False}  # only check the first time zip is inspected
 
     if manifest and (requires_poptracker or not checks.get("legacy_compat", True)):
         # if either legacy compat is off, or poptracker is required, check min_pop_version is sensible
@@ -240,14 +255,14 @@ def check(
         try:
             if tuple(map(int, min_poptracker_version.split("."))) < (0, 24, 1):
                 required_min_poptracker_version_string = ".".join(map(str, required_min_poptracker_version))
-                warn(
+                warn_pack(
                     f'min_poptracker_version should be at least "{required_min_poptracker_version_string}" '
                     "(this does not detect all features yet).",
                     manifest.name,
                 )
         except (ValueError, AttributeError):
             reason = "Pack requires poptracker" if requires_poptracker else "Legacy mode is off"
-            warn(f"{reason}, but min_poptracker_version is not set to a valid version.", manifest.name)
+            warn_pack(f"{reason}, but min_poptracker_version is not set to a valid version.", manifest.name)
 
     return count if ok else 0
 
@@ -258,7 +273,11 @@ def run(args: argparse.Namespace) -> int:
         **default_checks,
         "legacy_compat": args.legacy_compat,
     }
-    res = check(args.path, args.schema if args.schema else schema_default_src, args.strict, checks)
+    validate_external: bool = getattr(args, "validate_external", False)  # getattr since run is "public" in 1.x
+    with cli_warnings_formatter_context():
+        res = check(
+            args.path, args.schema if args.schema else schema_default_src, args.strict, checks, validate_external
+        )
     if res:
         print(f"Validated {res} files")
     if args.interactive:
@@ -307,6 +326,19 @@ def main(args: Optional[t.Sequence[str]] = None) -> None:
         action="store_false",
         dest="interactive",
         help="exit program when done (default on non-Windows)",
+    )
+    external_group = parser.add_mutually_exclusive_group()
+    external_group.add_argument(
+        "--validate-external",
+        action="store_true",
+        dest="validate_external",
+        help="allow validation of select known external schemas (will become default in 2.x)",
+    )
+    external_group.add_argument(
+        "--no-validate-external",
+        action="store_false",
+        dest="validate_external",
+        help="do not validate known external schema (default)",
     )
     sys.exit(run(parser.parse_args(args)))
 

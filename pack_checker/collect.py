@@ -17,9 +17,11 @@ class Item(t.NamedTuple):
     type: t.Optional[str]
     data: t.Any
 
+json_ignore_prefixes = (".vs/", ".vscode/")
+
 
 def find_entry_point(path: Path, checks: t.Mapping[str, bool]) -> ZipPath:
-    from .cli import warn
+    from .warnings import warn_pack
 
     assert path.is_file()  # noqa: S101 debug message, would fail in the line below anyway
     zippath = ZipPath(path)
@@ -44,7 +46,7 @@ def find_entry_point(path: Path, checks: t.Mapping[str, bool]) -> ZipPath:
         # use directory instead of root
         zippath = candidates[0]
     if warn_for_hidden_files and hidden:
-        warn(f"Zip contains hidden files: {hidden}.", path)
+        warn_pack(f"Zip contains hidden files: {hidden}.", path)
     return zippath
 
 
@@ -71,6 +73,11 @@ def read_manifest(path: APath) -> t.Tuple[t.Dict[str, t.Any], t.List[str]]:
 def identify_json(name: str, stream: t.TextIO, variants: t.List[str]) -> t.Optional[Item]:
     if not variants:
         raise ValueError("default variant missing from variants")
+
+    for ignore_prefix in json_ignore_prefixes:
+        if name.startswith(ignore_prefix):
+            return Item(name, "ignore", None)
+
     try:
         data = parse_jsonc(stream.read(), name)
     except JsonParserError as ex:
@@ -80,6 +87,10 @@ def identify_json(name: str, stream: t.TextIO, variants: t.List[str]) -> t.Optio
         return Item(name, "settings", data)
     if name == "manifest.json":
         return Item(name, "manifest", data)
+    if name == "versions.json":
+        return Item(name, "versions", data)  # TODO: warn if this file is present in the ZIP
+    if name == ".luarc.json":
+        return Item(name, ".luarc", data)
     for variant in variants:
         if variant:
             variant = variant + "/"
@@ -130,18 +141,21 @@ class _CollectJson(t.Generic[APath]):
         self.path = path
 
     def __call__(self, checks: t.Mapping[str, bool]) -> t.Generator[Item, None, None]:
-        from .cli import warn
+        from .cli import external_schema
+        from .warnings import warn_pack
 
         path = self.path
         manifest, variants = read_manifest(path)
         warn_for_legacy_incompatibility = checks.get("legacy_compat", True)
+        warn_for_unused_files = checks.get("unused_files", False)
+        unused_json: t.List[str] = []
 
         for f in path.rglob("*.json*", case_sensitive=False):  # type: ignore[call-arg,unused-ignore]
             name = str(f.relative_to(path)).replace("\\", "/")
             bin_read = "r" if PY < (3, 9) and isinstance(path, ZipPath) else "rb"
             with f.open(mode=bin_read) as bin_stream:
                 if bin_stream.read(3) == b"\xef\xbb\xbf":
-                    warn("File contains BOM but JSON files should not.", f, 0)
+                    warn_pack("File contains BOM but JSON files should not.", f, 0)
                 else:
                     bin_stream.seek(0, os.SEEK_SET)
                 pos = 0
@@ -149,13 +163,13 @@ class _CollectJson(t.Generic[APath]):
                     block = bin_stream.read(4096)
                     assert isinstance(block, bytes)  # noqa: S101 for type checker
                     if not block:
-                        warn("JSON files appears to be empty.", f, 0)
+                        warn_pack("JSON file appears to be empty.", f, 0)
                         break
                     orig_block_len = len(block)
                     block = block.lstrip()
                     if block:
                         if block[0:1] != b"[" and block[0:1] != b"{":
-                            warn(
+                            warn_pack(
                                 "JSON files should only contain white space before '[' or '{' for best compatibility."
                                 f" Byte at {pos + orig_block_len - len(block)} is {block[0:1]!r}.",
                                 f,
@@ -168,10 +182,17 @@ class _CollectJson(t.Generic[APath]):
                     item = identify_json(name, t.cast(t.TextIO, stream), variants)
                     if item:
                         yield item
+                        # TODO: move this to a separate thing and also warn for unused other files, not just JSON
+                        if warn_for_unused_files:
+                            if (item.type == "ignore" or item.type in external_schema) and not name.startswith("."):
+                                unused_json.append(item.name)
                     else:
                         yield Item(name, None, None)
                 except Exception as ex:
                     yield Item(name, "error", ex)
+
+        if unused_json:
+            warn_pack(f"Pack contains unused json: {unused_json}.", path)
 
 
 class _CollectLua(t.Generic[APath]):
@@ -181,7 +202,7 @@ class _CollectLua(t.Generic[APath]):
         self.path = path
 
     def __call__(self, checks: t.Mapping[str, bool]) -> t.Generator[Item, None, None]:
-        from .cli import warn
+        from .warnings import warn_pack
 
         path = self.path
 
@@ -190,7 +211,7 @@ class _CollectLua(t.Generic[APath]):
             bin_read = "r" if PY < (3, 9) and isinstance(path, ZipPath) else "rb"
             with f.open(mode=bin_read) as bin_stream:
                 if bin_stream.read(3) == b"\xef\xbb\xbf":
-                    warn("File contains BOM but Lua files should not.", f, 0, 0)
+                    warn_pack("File contains BOM but Lua files should not.", f, 0, 0)
 
             with f.open(encoding="utf-8-sig") as stream:  # type: ignore[call-arg, unused-ignore]
                 try:
@@ -206,7 +227,7 @@ class _CollectImages(t.Generic[APath]):
         self.path = path
 
     def __call__(self, checks: t.Mapping[str, bool]) -> t.Generator[Item, None, None]:
-        from .cli import warn
+        from .warnings import warn_pack
 
         path = self.path
         patterns = sorted(set(ext for fmt in img_formats for ext in fmt.extensions))
@@ -239,9 +260,9 @@ class _CollectImages(t.Generic[APath]):
                             raise Exception("Did not match any format. Bad pattern?")
                         ext = "." + str(f).rsplit(".", 1)[-1]
                         if data_format is None:
-                            warn(f"Image is named {ext} ({ext_format.name}) but content does not match", f)
+                            warn_pack(f"Image is named {ext} ({ext_format.name}) but content does not match", f)
                         else:
-                            warn(
+                            warn_pack(
                                 f"Image is named {ext} ({ext_format.name}) "
                                 f"but content appears to be {data_format.name}",
                                 f,
