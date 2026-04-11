@@ -11,13 +11,13 @@ PY = sys.version_info
 
 APath = t.TypeVar("APath", Path, ZipPath)
 
+json_ignore_prefixes = (".vs/", ".vscode/")
+
 
 class Item(t.NamedTuple):
     name: str
     type: t.Optional[str]
     data: t.Any
-
-json_ignore_prefixes = (".vs/", ".vscode/")
 
 
 def find_entry_point(path: Path, checks: t.Mapping[str, bool]) -> ZipPath:
