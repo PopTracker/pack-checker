@@ -17,6 +17,12 @@ Tool to check PopTracker packs.
 `pack_checker.py` can be run from source, it can be run as frozen `pack_checker.exe` from GitHub releases,
 or it can be installed as `pack-checker` script into a venv from PyPI with `pip install pack_checker`.
 
+## Recommended Use
+
+* Run pack-checker on your source code folder when looking for bugs.
+* Run pack-checker on your source code folder before pushing to a remote server or
+  [in CI](https://github.com/PopTracker/pack-checker-action).
+* Run pack-checker on your release (ZIP) file before release.
 
 ## Usage
 
