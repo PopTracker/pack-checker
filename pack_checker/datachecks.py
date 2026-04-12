@@ -63,27 +63,29 @@ def _locations_get_parents(data: t.Any) -> t.Generator[str, None, None]:
             yield from _locations_get_parents(children)
 
 
-def check_refs(data: t.Any, path: Path) -> None:
+def get_ids(path: Path) -> t.Tuple[t.Set[str], t.Set[str]]:
     from .collect import collect_json
 
+    section_ids = set()
+    location_ids = set()
+    for item in collect_json(path, {}):
+        if item.type == "locations":
+            for id_ in _locations_get_section_ids(item.data):
+                section_ids.add(id_)
+            for id_ in _locations_get_location_ids(item.data):
+                location_ids.add(id_)
+
+    return section_ids, location_ids
+
+
+def check_refs(data: t.Any, path: Path) -> None:
     # TODO: cache all known locations
     section_ids: t.Optional[t.Set[str]] = None
     location_ids: t.Optional[t.Set[str]] = None
 
-    def fill_ids() -> None:
-        nonlocal section_ids, location_ids
-        section_ids = set()
-        location_ids = set()
-        for item in collect_json(path, {}):
-            if item.type == "locations":
-                for id_ in _locations_get_section_ids(item.data):
-                    section_ids.add(id_)
-                for id_ in _locations_get_location_ids(item.data):
-                    location_ids.add(id_)
-
     for ref in _locations_get_refs(data):
         if section_ids is None:
-            fill_ids()
+            section_ids, location_ids = get_ids(path)
             assert section_ids is not None  # noqa: S101 type checking, should never be able to fail
         if ref not in section_ids:
             partial_ref = f"/{ref}"
@@ -95,7 +97,7 @@ def check_refs(data: t.Any, path: Path) -> None:
 
     for parent in _locations_get_parents(data):
         if location_ids is None:
-            fill_ids()
+            section_ids, location_ids = get_ids(path)
             assert location_ids is not None  # noqa: S101 type checking, should never be able to fail
         if parent not in location_ids:
             partial_parent = f"/{parent}"
