@@ -83,14 +83,9 @@ def identify_json(name: str, stream: t.TextIO, variants: t.List[str]) -> t.Optio
     except JsonParserError as ex:
         raise Exception(f"Error parsing {name}: {ex.__context__}")
 
-    if name == "settings.json":
-        return Item(name, "settings", data)
-    if name == "manifest.json":
-        return Item(name, "manifest", data)
-    if name == "versions.json":
-        return Item(name, "versions", data)  # TODO: warn if this file is present in the ZIP
-    if name == ".luarc.json":
-        return Item(name, ".luarc", data)
+    top_level_simple_types = {"settings.json", "manifest.json", "versions.json", ".luarc.json"}
+    if name in top_level_simple_types:
+        return Item(name, name.rsplit(".", 1)[0], data)
     for variant in variants:
         if variant:
             variant = variant + "/"
@@ -141,7 +136,7 @@ class _CollectJson(t.Generic[APath]):
         self.path = path
 
     def __call__(self, checks: t.Mapping[str, bool]) -> t.Generator[Item, None, None]:
-        from .cli import external_schema
+        from .checker import external_schema
         from .warnings import warn_pack
 
         path = self.path
