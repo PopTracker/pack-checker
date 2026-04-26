@@ -80,7 +80,7 @@ jobs:
           cd dist
           tar -czvf "../rls/pack-checker_${{ env.RELEASE_NAME }}_${{ matrix.name }}.tar.gz" -- *
       - name: Store Build
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           path: "rls/*"
           archive: false
@@ -157,7 +157,7 @@ jobs:
       - name: Build a binary wheel and a source tarball
         run: python3 -m build
       - name: Store the distribution packages
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: python-package-distributions
           path: dist/
