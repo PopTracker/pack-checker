@@ -55,7 +55,7 @@ jobs:
         run: |
           echo "RELEASE_NAME=dev" >> $GITHUB_ENV
       - name: Checkout
-        uses: actions/checkout@v6.0.3
+        uses: actions/checkout@v7.0.0
       - name: Install python ${{ matrix.py }}
         uses: actions/setup-python@v6.2.0
         with:
@@ -86,7 +86,7 @@ jobs:
           archive: false
           retention-days: 1
       - name: Checkout PopTracker examples
-        uses: actions/checkout@v6.0.3
+        uses: actions/checkout@v7.0.0
         with:
           repository: black-sliver/PopTracker
           path: PopTracker
@@ -141,7 +141,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
         with:
           persist-credentials: false
       - name: Set up Python
