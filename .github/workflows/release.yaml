@@ -8,6 +8,11 @@ on:
       - "*"
     paths:
       - ".github/workflows/release.yaml"
+      - "requirements.txt"
+      - "requirements_exe.txt"
+  pull_request:
+    paths:
+      - "requirements.txt"
       - "requirements_exe.txt"
   workflow_dispatch:
     inputs:
