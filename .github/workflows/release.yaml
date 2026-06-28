@@ -62,7 +62,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7.0.0
       - name: Install python ${{ matrix.py }}
-        uses: actions/setup-python@v6.2.0
+        uses: actions/setup-python@v6.3.0
         with:
           python-version: ${{ matrix.py }}
       - name: Build exe
@@ -150,7 +150,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Python
-        uses: actions/setup-python@v6.2.0
+        uses: actions/setup-python@v6.3.0
         with:
           python-version: "3.13"
       - name: Install pypa/build
