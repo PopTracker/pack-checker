@@ -31,7 +31,7 @@ cli = [
 lint = [
   "types-jsonschema>=4.20.0.20240105",
   "certifi>=2026.2.25",
-  "mypy==1.19.1",
+  "mypy==2.1.0",
   "flake8==7.3.0",
   "bandit==1.9.4",
   "flake8-bandit==4.1.1",
