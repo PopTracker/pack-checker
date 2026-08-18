@@ -130,7 +130,7 @@ jobs:
           skip-decompress: true  # they should not have been compressed by upload-artifact
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')  # only create release on tag pushes
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b  # v3.0.1
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228  # v3.0.2
         with:
           draft: true
           name: pack-checker v${{ env.RELEASE_VERSION }}
