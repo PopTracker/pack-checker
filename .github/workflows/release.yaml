@@ -85,7 +85,7 @@ jobs:
           cd dist
           tar -czvf "../rls/pack-checker_${{ env.RELEASE_NAME }}_${{ matrix.name }}.tar.gz" -- *
       - name: Store Build
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           path: "rls/*"
           archive: false
@@ -123,7 +123,7 @@ jobs:
           RELEASE_VERSION="${GITHUB_REF#refs/*/v}"
           echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_ENV
       - name: Download all the EXEs
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           pattern: "pack-checker_*"
           path: rls/
@@ -162,7 +162,7 @@ jobs:
       - name: Build a binary wheel and a source tarball
         run: python3 -m build
       - name: Store the distribution packages
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: python-package-distributions
           path: dist/
@@ -185,7 +185,7 @@ jobs:
 
     steps:
       - name: Download all the dists
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           name: python-package-distributions
           path: dist/
@@ -214,7 +214,7 @@ jobs:
 
     steps:
       - name: Download all the dists
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           name: python-package-distributions
           path: dist/
