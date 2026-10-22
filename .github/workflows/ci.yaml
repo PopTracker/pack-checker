@@ -32,7 +32,7 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          python -m pip install -U pip
+          python -m pip install --require-hashes -r .github/requirements_pip.txt
           python -m pip install '.[lint]'
       - name: Run mypy
         shell: bash
@@ -73,7 +73,8 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          python -m pip install -U pip -r requirements.txt -r requirements_ci.txt
+          python -m pip install --require-hashes -r .github/requirements_pip.txt
+          python -m pip install -r requirements.txt -r requirements_ci.txt
       - name: pytest
         shell: bash
         run: |
@@ -107,7 +108,8 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          python -m pip install -U pip -r requirements.txt
+          python -m pip install --require-hashes -r .github/requirements_pip.txt
+          python -m pip install -r requirements.txt
       - name: Checkout PopTracker files
         uses: actions/checkout@v7.0.1
         with:
@@ -173,6 +175,9 @@ jobs:
         uses: actions/setup-python@v7.0.0
         with:
           python-version: ${{ matrix.py }}
+      - name: Update pip
+        run: |
+          python -m pip install --require-hashes -r .github/requirements_pip.txt
       - name: Build Wheel
         run: |
           pip wheel .
