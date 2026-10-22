@@ -36,13 +36,13 @@ jobs:
         os: [windows-latest, ubuntu-22.04, macos-latest]
         include:
           - os: windows-latest
-            py: "3.13"
+            py: "3.14"
             name: "win64"
           - os: ubuntu-22.04
-            py: "3.13"
+            py: "3.14"
             name: "ubuntu-amd64"
           - os: macos-latest
-            py: "3.13"
+            py: "3.14"
             name: "macos"
 
     runs-on: ${{ matrix.os }}
@@ -153,7 +153,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7.0.0
         with:
-          python-version: "3.13"
+          python-version: "3.14"
       - name: Update pip
         run: |
           python -m pip install --require-hashes -r .github/requirements_pip.txt
