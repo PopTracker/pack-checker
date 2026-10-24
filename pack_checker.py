@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # This file provides backwards compatibility. It should behave like the old pack_checker.py.
 
 from pack_checker import __version__, __version_info__
