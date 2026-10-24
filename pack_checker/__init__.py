@@ -1,4 +1,4 @@
-__version_info__ = (1, 6, 0)
+__version_info__ = (1, 7, 0)
 __version__ = ".".join(map(str, __version_info__))
 
 # public API for use as lib
