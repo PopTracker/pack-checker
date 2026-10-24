@@ -16,10 +16,10 @@ jobs:
         include:
           - os: ubuntu-latest
             py: "3.10"  # oldest supported for dev
-          - os: ubuntu-latest
-            py: "3.14"  # newest supported, PosixPath
           - os: windows-latest
-            py: "3.15"  # newest working, WindowsPath
+            py: "3.14"  # preferred, WindowsPath
+          - os: ubuntu-latest
+            py: "3.15"  # newest supported, PosixPath
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -58,9 +58,9 @@ jobs:
           - os: windows-latest
             py: "3.11"
           - os: macos-latest
-            py: "3.14"  # newest supported
+            py: "3.14"  # preferred
           - os: ubuntu-latest
-            py: "3.15"  # newest working
+            py: "3.15"  # newest supported
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -91,9 +91,9 @@ jobs:
           - os: windows-latest
             py: "3.11"
           - os: macos-latest
-            py: "3.14"  # newest supported
+            py: "3.14"  # preferred
           - os: ubuntu-latest
-            py: "3.15"  # newest working
+            py: "3.15"  # newest supported
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -163,7 +163,7 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            py: "3.14"  # newest supported
+            py: "3.14"  # preferred
 
     runs-on: ${{ matrix.os }}
     steps:
