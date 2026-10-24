@@ -5,7 +5,7 @@ Tool to check PopTracker packs.
 
 ## Features
 
-* Validates json schema
+* Validates JSON schema
 * Warns for some json/jsonc and Lua compatibility issues
 * Warns for some hidden/dead files (only for zipped packs)
 * Warns for unsupported images and misleading file extensions
@@ -14,7 +14,9 @@ Tool to check PopTracker packs.
 
 ## Installation
 
-`pack_checker.py` can be run from source, it can be run as frozen `pack_checker.exe` from GitHub releases,
+`pack_checker.py` can be run from source,
+it can be run as frozen `pack_checker.exe` from GitHub releases,
+it can be used [in CI](https://github.com/PopTracker/pack-checker-action),
 or it can be installed as `pack-checker` script into a venv from PyPI with `pip install pack-checker`.
 
 ## Recommended Use
@@ -27,7 +29,9 @@ or it can be installed as `pack-checker` script into a venv from PyPI with `pip 
 ## Usage
 
 ```
-usage: pack_checker.py [-h] [--strict] [--schema folder/url] [--check-legacy-compat | --no-legacy-compat] [-i | -b] path/to/pack
+usage: pack_checker.py [-h] [--strict] [--schema folder/url] [--check-legacy-compat | --no-legacy-compat]
+                       [-i | -b] [--validate-external | --no-validate-external]
+                       path/to/pack
 
 positional arguments:
   path/to/pack          path to the pack to check
@@ -37,8 +41,13 @@ options:
   --strict              use strict json schema
   --schema folder/url   use custom schema source
   --check-legacy-compat
-                        check for compatibility issues with old PopTracker versions and alternative implementations (default)
-  --no-legacy-compat    skip checking for compatibility issues with very old PopTracker versions and alternative implementations
+                        check for compatibility issues with old PopTracker versions and alternative
+                        implementations (default)
+  --no-legacy-compat    skip checking for compatibility issues with very old PopTracker versions and
+                        alternative implementations
   -i, --interactive     keep console open when done (default on Windows)
   -b, --batch           exit program when done (default on non-Windows)
+  --validate-external   allow validation of select known external schemas (will become default in 2.x)
+  --no-validate-external
+                        do not validate known external schema (default)
 ```

@@ -1,5 +1,24 @@
 # pack-checker Changelog
 
+## v1.7.0 Changes
+
+### New Checks
+
+* Schema validation for classes
+* Optional schema validation of .luarc.json and versions.json
+  * Default off, enable with `--validate-external`
+  * This will become default on in the future, disable with `--no-validate-external`
+
+## New features
+
+* Switch some print statements to proper warnings
+* Ignore JSON files in .vs and .vscode folders
+
+### Other Changes
+
+* EXE: Update dependencies and certificates
+
+
 ## v1.6.0 Changes
 
 ### New Checks
