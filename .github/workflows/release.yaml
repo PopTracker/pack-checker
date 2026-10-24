@@ -156,7 +156,7 @@ jobs:
           python-version: "3.14"
       - name: Update pip
         run: |
-          python -m pip install --require-hashes -r .github/requirements_pip.txt
+          python3 -m pip install --require-hashes -r .github/requirements_pip.txt
       - name: Install pypa/build
         run: >-
           python3 -m
