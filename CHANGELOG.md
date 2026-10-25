@@ -9,7 +9,7 @@
   * Default off, enable with `--validate-external`
   * This will become default on in the future, disable with `--no-validate-external`
 
-## New features
+### New features
 
 * Switch some print statements to proper warnings
 * Ignore JSON files in .vs and .vscode folders
