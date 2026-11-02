@@ -62,7 +62,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7.0.1
       - name: Install python ${{ matrix.py }}
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: ${{ matrix.py }}
       - name: Build exe
@@ -151,7 +151,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.14"
       - name: Update pip
